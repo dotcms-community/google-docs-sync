@@ -1,0 +1,4 @@
+.clasp.json
+.claspignore
+.git/**
+node_modules/**

@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Google Sans', Roboto, Arial, sans-serif; font-size: 13px; color: #333; padding: 12px; }
+
+  /* Tabs */
+  .tabs { display: flex; border-bottom: 2px solid #e0e0e0; margin-bottom: 12px; }
+  .tab { flex: 1; text-align: center; padding: 8px 0; cursor: pointer; font-weight: 500; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+  .tab.active { color: #1a73e8; border-bottom-color: #1a73e8; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Form elements */
+  label { display: block; font-weight: 500; margin: 8px 0 4px; color: #555; }
+  select, input[type="text"], input[type="password"] {
+    width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px;
+    font-size: 13px; background: #fff;
+  }
+  select:focus, input:focus { outline: none; border-color: #1a73e8; }
+
+  /* Buttons */
+  .btn { display: inline-block; padding: 8px 16px; border: none; border-radius: 4px; font-size: 13px; cursor: pointer; font-weight: 500; }
+  .btn-primary { background: #1a73e8; color: #fff; width: 100%; }
+  .btn-primary:hover { background: #1557b0; }
+  .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+  .btn-secondary { background: #f1f3f4; color: #333; }
+  .btn-secondary:hover { background: #e0e0e0; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+  /* Toggle */
+  .toggle-group { display: flex; border: 1px solid #dadce0; border-radius: 4px; overflow: hidden; margin-top: 4px; }
+  .toggle-option { flex: 1; text-align: center; padding: 8px; cursor: pointer; font-size: 12px; font-weight: 500; background: #fff; border: none; }
+  .toggle-option.active { background: #1a73e8; color: #fff; }
+
+  /* Progress */
+  .progress-bar { width: 100%; height: 4px; background: #e0e0e0; border-radius: 2px; margin: 8px 0; display: none; }
+  .progress-bar .fill { height: 100%; background: #1a73e8; border-radius: 2px; transition: width 0.3s; width: 0%; }
+
+  /* Sync log */
+  .sync-log { margin-top: 12px; border-top: 1px solid #e0e0e0; padding-top: 8px; }
+  .sync-log h4 { font-size: 12px; color: #666; margin-bottom: 6px; }
+  .log-entry { font-size: 11px; padding: 4px 0; border-bottom: 1px solid #f1f3f4; }
+  .log-entry .status { font-weight: 600; }
+  .log-entry .status.success { color: #0d904f; }
+  .log-entry .status.partial { color: #e37400; }
+  .log-entry .status.error { color: #d93025; }
+  .log-entry .timestamp { color: #999; }
+  .log-entry .failures { color: #d93025; font-size: 10px; margin-top: 2px; }
+
+  /* Messages */
+  .msg { padding: 8px; border-radius: 4px; margin: 8px 0; font-size: 12px; }
+  .msg-info { background: #e8f0fe; color: #1a73e8; }
+  .msg-error { background: #fce8e6; color: #d93025; }
+  .msg-success { background: #e6f4ea; color: #0d904f; }
+  .msg-warn { background: #fef7e0; color: #e37400; }
+
+  /* Relationship lookup */
+  .lookup-group { display: flex; gap: 4px; margin-top: 4px; }
+  .lookup-group input { flex: 1; }
+  .lookup-results { max-height: 120px; overflow-y: auto; border: 1px solid #dadce0; border-radius: 4px; margin-top: 4px; display: none; }
+  .lookup-item { padding: 6px 8px; cursor: pointer; font-size: 12px; border-bottom: 1px solid #f1f3f4; }
+  .lookup-item:hover { background: #e8f0fe; }
+
+  .section { margin-bottom: 12px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab active" data-tab="main" onclick="switchTab('main')">Sync</div>
+  <div class="tab" data-tab="settings" onclick="switchTab('settings')">Settings</div>
+</div>
+
+<!-- ═══ SETTINGS TAB ═══ -->
+<div id="tab-settings" class="tab-content">
+  <div class="section">
+    <label for="hostUrl">dotCMS Host URL</label>
+    <input type="text" id="hostUrl" placeholder="https://your-dotcms-instance.com">
+  </div>
+  <div class="section">
+    <label for="apiToken">API Token</label>
+    <input type="password" id="apiToken" placeholder="Your API token">
+  </div>
+  <div class="section">
+    <button class="btn btn-primary" onclick="saveSettingsClick()">Save Settings</button>
+  </div>
+  <div id="settings-msg"></div>
+</div>
+
+<!-- ═══ MAIN TAB ═══ -->
+<div id="tab-main" class="tab-content active">
+
+  <div id="config-warning" class="msg msg-warn hidden">
+    Please configure your dotCMS connection in the Settings tab first.
+  </div>
+
+  <div id="main-form">
+    <!-- Content Type -->
+    <div class="section">
+      <label for="contentType">Content Type</label>
+      <select id="contentType" onchange="onContentTypeChange()">
+        <option value="">-- Select --</option>
+      </select>
+    </div>
+
+    <!-- Site -->
+    <div class="section">
+      <label for="site">Site</label>
+      <select id="site" onchange="onSiteChange()">
+        <option value="">-- Select --</option>
+      </select>
+    </div>
+
+    <!-- Folder -->
+    <div class="section">
+      <label for="folder">Folder</label>
+      <select id="folder">
+        <option value="">/ (root)</option>
+      </select>
+    </div>
+
+    <!-- Body Field -->
+    <div class="section">
+      <label for="bodyField">Body Field</label>
+      <select id="bodyField">
+        <option value="body">body</option>
+      </select>
+    </div>
+
+    <!-- Language -->
+    <div class="section">
+      <label for="language">Language</label>
+      <select id="language">
+        <option value="1">Default</option>
+      </select>
+    </div>
+
+    <!-- Field Editor (for select, boolean, relationship fields) -->
+    <div class="section" id="fieldEditorSection" style="display:none;">
+      <label>Field Editor</label>
+      <div id="fieldEditorControls" style="font-size:12px;"></div>
+    </div>
+
+    <!-- Publish Mode -->
+    <div class="section">
+      <label>Mode</label>
+      <div class="toggle-group">
+        <button class="toggle-option active" data-mode="SAVE" onclick="setMode('SAVE')">Draft</button>
+        <button class="toggle-option" data-mode="PUBLISH" onclick="setMode('PUBLISH')">Publish</button>
+      </div>
+    </div>
+
+    <!-- Sync Button -->
+    <div class="section" style="margin-top: 16px;">
+      <button id="syncBtn" class="btn btn-primary" onclick="syncClick()">Sync to dotCMS</button>
+      <div class="progress-bar" id="progressBar"><div class="fill" id="progressFill"></div></div>
+    </div>
+
+    <div id="sync-msg"></div>
+
+    <!-- Sync Log -->
+    <div class="sync-log" id="syncLog"></div>
+  </div>
+</div>
+
+<script>
+  var currentMode = 'SAVE';
+  var currentContentTypeFields = [];
+
+  // ── Tab switching ──
+
+  function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelectorAll('.tab-content').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelector('[data-tab="' + tab + '"]').classList.add('active');
+    document.getElementById('tab-' + tab).classList.add('active');
+  }
+
+  // ── Settings ──
+
+  function saveSettingsClick() {
+    var host = document.getElementById('hostUrl').value.trim();
+    var token = document.getElementById('apiToken').value.trim();
+    if (!host || !token) {
+      showMsg('settings-msg', 'Both fields are required.', 'error');
+      return;
+    }
+    google.script.run
+      .withSuccessHandler(function() {
+        showMsg('settings-msg', 'Settings saved!', 'success');
+        loadMainData();
+      })
+      .withFailureHandler(function(e) { showMsg('settings-msg', e.message, 'error'); })
+      .saveSettings(host, token);
+  }
+
+  function loadSettings() {
+    google.script.run
+      .withSuccessHandler(function(s) {
+        if (s.hostUrl) document.getElementById('hostUrl').value = s.hostUrl;
+        if (s.apiToken) document.getElementById('apiToken').value = s.apiToken;
+        if (s.hostUrl && s.apiToken) {
+          loadMainData();
+        } else {
+          document.getElementById('config-warning').classList.remove('hidden');
+        }
+      })
+      .getSettings();
+  }
+
+  // ── Main tab data loading ──
+
+  function loadMainData() {
+    document.getElementById('config-warning').classList.add('hidden');
+    loadContentTypes();
+    loadSites();
+    loadLanguages();
+    loadSyncLog();
+  }
+
+  function loadContentTypes() {
+    google.script.run
+      .withSuccessHandler(function(types) {
+        var sel = document.getElementById('contentType');
+        sel.innerHTML = '<option value="">-- Select --</option>';
+        types.forEach(function(ct) {
+          var opt = document.createElement('option');
+          opt.value = ct.variable;
+          opt.textContent = ct.name;
+          sel.appendChild(opt);
+        });
+      })
+      .withFailureHandler(function(e) { showMsg('sync-msg', 'Failed to load content types: ' + e.message, 'error'); })
+      .getContentTypes();
+  }
+
+  function loadSites() {
+    google.script.run
+      .withSuccessHandler(function(sites) {
+        var sel = document.getElementById('site');
+        sel.innerHTML = '<option value="">-- Select --</option>';
+        sites.forEach(function(s) {
+          var opt = document.createElement('option');
+          opt.value = s.identifier;
+          opt.textContent = s.name;
+          sel.appendChild(opt);
+        });
+      })
+      .withFailureHandler(function(e) { showMsg('sync-msg', 'Failed to load sites: ' + e.message, 'error'); })
+      .getSites();
+  }
+
+  function loadLanguages() {
+    google.script.run
+      .withSuccessHandler(function(langs) {
+        var sel = document.getElementById('language');
+        sel.innerHTML = '';
+        langs.forEach(function(l) {
+          var opt = document.createElement('option');
+          opt.value = l.id;
+          opt.textContent = l.language + (l.country ? ' (' + l.country + ')' : '');
+          sel.appendChild(opt);
+        });
+      })
+      .withFailureHandler(function(e) { console.log('Languages error:', e); })
+      .getLanguages();
+  }
+
+  // ── Content Type change ──
+
+  function onContentTypeChange() {
+    var ctVar = document.getElementById('contentType').value;
+    if (!ctVar) return;
+
+    // Check if a metadata table already exists
+    google.script.run
+      .withSuccessHandler(function(hasTable) {
+        if (hasTable) {
+          if (!confirm('A metadata table already exists. Switching content types will replace it. Continue?')) {
+            return;
+          }
+        }
+        generateTable(ctVar);
+      })
+      .hasExistingMetadataTable();
+  }
+
+  function generateTable(ctVar) {
+    google.script.run
+      .withSuccessHandler(function(fields) {
+        currentContentTypeFields = fields;
+        populateBodyFieldDropdown(fields);
+        buildFieldEditor(fields);
+        showMsg('sync-msg', 'Metadata table generated with ' + fields.length + ' required field(s).', 'info');
+      })
+      .withFailureHandler(function(e) { showMsg('sync-msg', 'Failed to generate table: ' + e.message, 'error'); })
+      .generateMetadataTable(ctVar);
+  }
+
+  // ── Field Editor for select, boolean, and relationship fields ──
+
+  function buildFieldEditor(fields) {
+    var container = document.getElementById('fieldEditorControls');
+    container.innerHTML = '';
+    var hasSpecialFields = false;
+
+    fields.forEach(function(f) {
+      if (!f.required) return;
+      var ft = f.fieldType.toLowerCase();
+
+      // Select / Radio fields
+      if (ft.indexOf('select') !== -1 || ft.indexOf('radio') !== -1) {
+        var vals = (f.values || '').split(/\r?\n/).filter(function(v) { return v.trim(); });
+        if (vals.length > 0) {
+          hasSpecialFields = true;
+          var wrapper = document.createElement('div');
+          wrapper.style.marginBottom = '8px';
+          wrapper.innerHTML = '<label style="margin:4px 0 2px;font-size:12px;">' + f.name + ' (' + f.variable + ')</label>';
+          var sel = document.createElement('select');
+          sel.style.cssText = 'width:100%;padding:6px;border:1px solid #dadce0;border-radius:4px;font-size:12px;';
+          sel.innerHTML = '<option value="">-- Select --</option>';
+          vals.forEach(function(v) {
+            // dotCMS values format can be "label|value" or just "value"
+            var parts = v.trim().split('|');
+            var label = parts[0].trim();
+            var value = (parts[1] || parts[0]).trim();
+            var opt = document.createElement('option');
+            opt.value = value;
+            opt.textContent = label;
+            sel.appendChild(opt);
+          });
+          sel.onchange = function() { updateDocField(f.variable, sel.value); };
+          wrapper.appendChild(sel);
+          container.appendChild(wrapper);
+        }
+      }
+
+      // Boolean / Checkbox fields
+      else if (ft.indexOf('boolean') !== -1 || ft.indexOf('checkbox') !== -1) {
+        hasSpecialFields = true;
+        var wrapper = document.createElement('div');
+        wrapper.style.marginBottom = '8px';
+        wrapper.innerHTML = '<label style="margin:4px 0 2px;font-size:12px;">' + f.name + ' (' + f.variable + ')</label>';
+        var sel = document.createElement('select');
+        sel.style.cssText = 'width:100%;padding:6px;border:1px solid #dadce0;border-radius:4px;font-size:12px;';
+        sel.innerHTML = '<option value="">-- Select --</option><option value="true">true</option><option value="false">false</option>';
+        sel.onchange = function() { updateDocField(f.variable, sel.value); };
+        wrapper.appendChild(sel);
+        container.appendChild(wrapper);
+      }
+
+      // Relationship fields
+      else if (ft.indexOf('relationship') !== -1) {
+        hasSpecialFields = true;
+        var isMulti = f.cardinality !== null && f.cardinality !== 0;
+        var wrapper = document.createElement('div');
+        wrapper.style.marginBottom = '8px';
+        wrapper.innerHTML = '<label style="margin:4px 0 2px;font-size:12px;">' + f.name + ' (' + f.variable + ')' + (isMulti ? ' [multi]' : '') + '</label>';
+
+        var lookupGroup = document.createElement('div');
+        lookupGroup.className = 'lookup-group';
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = 'Search content...';
+        input.style.cssText = 'flex:1;padding:6px;border:1px solid #dadce0;border-radius:4px;font-size:12px;';
+        var btn = document.createElement('button');
+        btn.className = 'btn btn-secondary btn-sm';
+        btn.textContent = 'Search';
+        lookupGroup.appendChild(input);
+        lookupGroup.appendChild(btn);
+        wrapper.appendChild(lookupGroup);
+
+        var results = document.createElement('div');
+        results.className = 'lookup-results';
+        wrapper.appendChild(results);
+
+        // Show selected items for multi-select
+        var selected = document.createElement('div');
+        selected.style.cssText = 'font-size:11px;color:#555;margin-top:4px;';
+        wrapper.appendChild(selected);
+
+        var selectedIds = [];
+
+        btn.onclick = function() {
+          var query = input.value.trim();
+          if (!query) return;
+          results.style.display = 'block';
+          results.innerHTML = '<div style="padding:6px;color:#999;">Searching...</div>';
+          google.script.run
+            .withSuccessHandler(function(items) {
+              results.innerHTML = '';
+              if (!items || items.length === 0) {
+                results.innerHTML = '<div style="padding:6px;color:#999;">No results found.</div>';
+                return;
+              }
+              items.forEach(function(item) {
+                var div = document.createElement('div');
+                div.className = 'lookup-item';
+                div.textContent = item.title + ' (' + item.identifier + ')';
+                div.onclick = function() {
+                  if (isMulti) {
+                    if (selectedIds.indexOf(item.identifier) === -1) {
+                      selectedIds.push(item.identifier);
+                    }
+                    selected.textContent = 'Selected: ' + selectedIds.join(', ');
+                    updateDocField(f.variable, selectedIds.join(','));
+                  } else {
+                    selectedIds = [item.identifier];
+                    selected.textContent = 'Selected: ' + item.title;
+                    updateDocField(f.variable, item.identifier);
+                    results.style.display = 'none';
+                  }
+                };
+                results.appendChild(div);
+              });
+            })
+            .withFailureHandler(function(e) {
+              results.innerHTML = '<div style="padding:6px;color:#d93025;">Error: ' + e.message + '</div>';
+            })
+            .searchContent('+contentType:' + (f.relationType || '*') + ' +(' + query + ')');
+        };
+
+        // Allow Enter key to search
+        input.onkeydown = function(e) { if (e.key === 'Enter') btn.onclick(); };
+
+        container.appendChild(wrapper);
+      }
+    });
+
+    document.getElementById('fieldEditorSection').style.display = hasSpecialFields ? 'block' : 'none';
+  }
+
+  function updateDocField(fieldVariable, value) {
+    google.script.run
+      .withFailureHandler(function(e) { console.log('Failed to update field:', e); })
+      .updateMetadataField(fieldVariable, value);
+  }
+
+  function populateBodyFieldDropdown(fields) {
+    var sel = document.getElementById('bodyField');
+    sel.innerHTML = '';
+
+    // Find WYSIWYG/textarea/story block fields for body
+    var bodyFields = fields.filter(function(f) {
+      var ft = f.fieldType.toLowerCase();
+      return ft.indexOf('wysiwyg') !== -1 || ft.indexOf('textarea') !== -1 ||
+             ft.indexOf('storyblock') !== -1 || ft.indexOf('richtext') !== -1;
+    });
+
+    if (bodyFields.length === 0) {
+      // Default fallback
+      var opt = document.createElement('option');
+      opt.value = 'body';
+      opt.textContent = 'body (default)';
+      sel.appendChild(opt);
+    } else {
+      bodyFields.forEach(function(f) {
+        var opt = document.createElement('option');
+        opt.value = f.variable;
+        opt.textContent = f.name + ' (' + f.variable + ')';
+        if (f.variable === 'body') opt.selected = true;
+        sel.appendChild(opt);
+      });
+    }
+  }
+
+  // ── Site change → load folders ──
+
+  function onSiteChange() {
+    var siteId = document.getElementById('site').value;
+    if (!siteId) return;
+
+    google.script.run
+      .withSuccessHandler(function(folders) {
+        var sel = document.getElementById('folder');
+        sel.innerHTML = '<option value="">/ (root)</option>';
+        folders.forEach(function(f) {
+          var opt = document.createElement('option');
+          opt.value = f.path;
+          opt.textContent = f.path;
+          sel.appendChild(opt);
+        });
+      })
+      .withFailureHandler(function(e) { console.log('Folders error:', e); })
+      .getFolders(siteId);
+  }
+
+  // ── Publish mode toggle ──
+
+  function setMode(mode) {
+    currentMode = mode;
+    document.querySelectorAll('.toggle-option').forEach(function(btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-mode') === mode);
+    });
+  }
+
+  // ── Sync ──
+
+  function syncClick() {
+    var ct = document.getElementById('contentType').value;
+    var site = document.getElementById('site').value;
+    var folder = document.getElementById('folder').value;
+    var bodyField = document.getElementById('bodyField').value;
+    var lang = document.getElementById('language').value;
+
+    if (!ct) { showMsg('sync-msg', 'Please select a content type.', 'error'); return; }
+    if (!site) { showMsg('sync-msg', 'Please select a site.', 'error'); return; }
+
+    var btn = document.getElementById('syncBtn');
+    btn.disabled = true;
+    btn.textContent = 'Syncing...';
+    showProgress(true, 10);
+    showMsg('sync-msg', '', '');
+
+    var options = {
+      contentType: ct,
+      siteId: site,
+      folderPath: folder,
+      bodyField: bodyField || 'body',
+      languageId: parseInt(lang) || 1,
+      publishMode: currentMode
+    };
+
+    showProgress(true, 30);
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        showProgress(true, 100);
+        setTimeout(function() { showProgress(false); }, 500);
+
+        btn.disabled = false;
+        btn.textContent = 'Sync to dotCMS';
+
+        if (result.status === 'success') {
+          showMsg('sync-msg', result.message, 'success');
+        } else if (result.status === 'partial') {
+          var failNames = result.failures.map(function(f) { return f.name; }).join(', ');
+          showMsg('sync-msg', result.message + ' Failed: ' + failNames, 'warn');
+        } else {
+          showMsg('sync-msg', result.message, 'error');
+        }
+
+        loadSyncLog();
+      })
+      .withFailureHandler(function(e) {
+        showProgress(false);
+        btn.disabled = false;
+        btn.textContent = 'Sync to dotCMS';
+        showMsg('sync-msg', 'Sync error: ' + e.message, 'error');
+      })
+      .syncToDocCMS(options);
+  }
+
+  // ── Sync Log ──
+
+  function loadSyncLog() {
+    google.script.run
+      .withSuccessHandler(function(log) {
+        var container = document.getElementById('syncLog');
+        if (!log || log.length === 0) {
+          container.innerHTML = '<h4>Sync Log</h4><div class="log-entry" style="color:#999;">No syncs yet.</div>';
+          return;
+        }
+        var html = '<h4>Sync Log</h4>';
+        log.forEach(function(entry) {
+          var ts = new Date(entry.timestamp);
+          var timeStr = ts.toLocaleDateString() + ' ' + ts.toLocaleTimeString();
+          html += '<div class="log-entry">';
+          html += '<span class="status ' + entry.status + '">' + entry.status.toUpperCase() + '</span> ';
+          html += '<span class="timestamp">' + timeStr + '</span>';
+          html += '<div>' + entry.message + '</div>';
+          if (entry.failures && entry.failures.length > 0) {
+            html += '<div class="failures">Failed: ' + entry.failures.map(function(f) { return f.name; }).join(', ') + '</div>';
+          }
+          html += '</div>';
+        });
+        container.innerHTML = html;
+      })
+      .getSyncLog();
+  }
+
+  // ── Helpers ──
+
+  function showMsg(id, text, type) {
+    var el = document.getElementById(id);
+    if (!text) { el.innerHTML = ''; el.className = ''; return; }
+    el.className = 'msg msg-' + type;
+    el.textContent = text;
+  }
+
+  function showProgress(show, pct) {
+    var bar = document.getElementById('progressBar');
+    var fill = document.getElementById('progressFill');
+    bar.style.display = show ? 'block' : 'none';
+    if (pct !== undefined) fill.style.width = pct + '%';
+  }
+
+  // ── Init ──
+  loadSettings();
+</script>
+</body>
+</html>
