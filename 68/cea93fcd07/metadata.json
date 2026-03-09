@@ -3,7 +3,7 @@
   "checkpoint_id": "68cea93fcd07",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 20,
+  "checkpoints_count": 23,
   "files_touched": [
     "Code.gs",
     "DocParser.gs",
@@ -18,13 +18,19 @@
       "transcript": "/68/cea93fcd07/0/full.jsonl",
       "content_hash": "/68/cea93fcd07/0/content_hash.txt",
       "prompt": "/68/cea93fcd07/0/prompt.txt"
+    },
+    {
+      "metadata": "/68/cea93fcd07/1/metadata.json",
+      "transcript": "/68/cea93fcd07/1/full.jsonl",
+      "content_hash": "/68/cea93fcd07/1/content_hash.txt",
+      "prompt": "/68/cea93fcd07/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 163,
-    "cache_creation_tokens": 262557,
-    "cache_read_tokens": 6952312,
-    "output_tokens": 26211,
-    "api_call_count": 97
+    "input_tokens": 175,
+    "cache_creation_tokens": 291632,
+    "cache_read_tokens": 7086331,
+    "output_tokens": 27313,
+    "api_call_count": 103
   }
 }
