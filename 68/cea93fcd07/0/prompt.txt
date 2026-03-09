@@ -1,0 +1,127 @@
+in the google doc plugin, when the content is first persisted to dotCMS, we need to read the returned identifier and add it to the metadata table in the top of the document.  If there is already an identifier there, we should send it as part of the save or publish payload
+
+---
+
+can you push this to google so I can test?
+
+---
+
+clasp is already set up
+
+---
+
+it is still not adding the identifer to the table when I save:
+
+---
+
+it is getting this back: Content sent but no identifier returned. Response: {"afc19890-67c3-4cad-bdab-b491a437919f":{"AUTO_ASSIGN_WORKFLOW":false,"__IS_NEW_CONTENT__":true,"__icon__":"contentIcon","archived":false,"baseType":"CONTENT","body":"<p>Surfing in Tahiti is an experience like no other. With its crystal clear waters, warm weather, and beautiful white sand beaches, i Failed:
+
+---
+
+we don't want the inode, we need the identifier, which seems to be the key for the map
+
+---
+
+still getting this: Content sent but no identifier returned. Response: {"9c1b4fcc-8239-4cf2-bb03-3c3d8edfa495":{"AUTO_ASSIGN_WORKFLOW":false,"__IS_NEW_CONTENT__":true,"__icon__":"contentIcon","archived":false,"baseType":"CONTENT","body":"<p>Surfing in Tahiti is an experience like no other. With its crystal clear waters, warm weather, and beautiful white sand beaches, i Failed:
+
+---
+
+the identifer is not always a uuid
+
+---
+
+still seeig this in the logs - can we print a different message so I know I am seeing the updated app?  Content sent but no identifier returned. Response: {"22f466d5-9a61-43b8-851f-267f69cb4b03":{"AUTO_ASSIGN_WORKFLOW":false,"__IS_NEW_CONTENT__":true,"__icon__":"contentIcon","archived":false,"baseType":"CONTENT","body":"<p>Surfing in Tahiti is an experience like no other. With its crystal clear waters, warm weather, and beautiful white sand beaches, i Failed:
+
+---
+
+got this:
+[v3] No identifier found. Entity keys: REDACTED | Raw: {"REDACTED":{"AUTO_ASSIGN_WORKFLOW":false,"__IS_NEW_CONTENT__":true,"__icon__":"contentIcon","archived":false,"baseType":"CONTENT","body":"<p>Surfing in Tahiti is an experience like no other. With its crystal clear waters, warm weather, and beautiful white sand beaches, i Failed:
+
+---
+
+baseType should exist but have different values - is that ok?
+
+---
+
+still getting this `[v3] No identifier found. Entity keys: REDACTED | Raw: {"REDACTED":{"AUTO_ASSIGN_WORKFLOW":false,"__IS_NEW_CONTENT__":true,"__icon__":"contentIcon","archived":false,"baseType":"CONTENT","body":"<p>Surfing in Tahiti is an experience like no other. With its crystal clear waters, warm weather, and beautiful white sand beaches, i Failed:`
+
+---
+
+this is what the endpoint returns:
+
+{
+  "entity": {
+    "AUTO_ASSIGN_WORKFLOW": false,
+    "__IS_NEW_CONTENT__": true,
+    "__icon__": "contentIcon",
+    "archived": false,
+    "baseType": "CONTENT",
+    "body": "<b>Nice Body!</b>",
+    "contentType": "webPageContent",
+    "contentTypeIcon": "wysiwyg",
+    "creationDate": 1772992971707,
+    "disabledWYSIWYG": [],
+    "folder": "SYSTEM_FOLDER",
+    "hasLiveVersion": true,
+    "hasTitleImage": false,
+    "host": "48190c8c-42c4-46af-8d1a-0cd5db894797",
+    "hostName": "demo.dotcms.com",
+    "identifier": "e9202433766ea6751f9268550ec04093",
+    "inode": "be16da6a-fe8a-4735-969b-8bfc5b7f5ef1",
+    "languageId": 1,
+    "live": true,
+    "locked": false,
+    "modDate": 1772992971701,
+    "modUser": "dotcms.org.1",
+    "modUserName": "Admin User",
+    "owner": "dotcms.org.1",
+    "ownerUserName": "Admin User",
+    "publishDate": 1772992971752,
+    "publishUser": "dotcms.org.1",
+    "publishUserName": "Admin User",
+    "shortyId": "e920243376",
+    "sortOrder": 0,
+    "stInode": "2a3e91e4-fbbf-4876-8c5b-2233c1739b05",
+    "title": "test3 Chris Selva tropical de Costa Rica",
+    "titleImage": "TITLE_IMAGE_NOT_FOUND",
+    "url": "/content.be16da6a-fe8a-4735-969b-8bfc5b7f5ef1",
+    "variant": "DEFAULT",
+    "working": true
+  },
+  "errors": [],
+  "i18nMessagesMap": {},
+  "messages": [],
+  "pagination": null,
+  "permissions": []
+}
+
+---
+
+that worked - ok, now lets work on getting the included images working.
+
+---
+
+we get this when there are included images: Content synced but 1 image(s) failed to upload. Failed: image_0.jpg
+
+---
+
+ok the temp image was created but the html replacement looked like this : <img src="https://snooklabs.com/dA/results" />
+
+it should look like <img src="https://snooklabs.com/dA/{{Identifier}}" /> where the identifier is the id of the newly created image.
+
+---
+
+we broke the identifer again - it is now entering "summary" as the identifer. And the image still does not work.  Please revert to when we fixed the identifier and use the same logic to get the identifier for the uploaded image
+
+---
+
+dammit, now the identifer says "results"
+
+---
+
+NO! now it says summary again.
+  can you log the responses it is getting from dotcms so you can correctly identify the key of the identifier?  Then you can use clasp logs to pull the
+
+---
+
+pull the logs
