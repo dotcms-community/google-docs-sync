@@ -1,0 +1,114 @@
+can you add all the editable fields of a content type to the metadata table when it is selected? When selecting a content type, please add all the editable fields to the metadata table, not just the required ones. If possible, if the field is a select box or check box, make that into a drop-down in the Google Doc.
+
+---
+
+please ignore any fields that match fields[0-9]+
+
+---
+
+Also, a content type may have 1, optionally,  custom host field in it. If this field exists, it acts as the host field - and we do not need the other `host` field.  The custom host field does not necessarily have to have the variable name host - it is of clazz ImmutableHostFolderField. It's important if there is a custom host field on the content type to use that as the host when selecting the host on the left-hand bar.
+
+---
+
+the blog content type has a storyblock field called blogContent that is the main body of the blog - it is not showing up in the select list for the body field:
+
+---
+
+it is ImmutableStoryBlockField
+
+---
+
+the clazz value is ImmutableStoryBlockField, the fieldType is Story-Block
+
+---
+
+ok, can we go back to only showing required fields by default?  Then, in the panel, add a select box that shows the other available fields that the user can select and then they show up in the metadata table
+
+---
+
+The blog type has a custom host field called contentHost but we are still adding the default host field to the metadata.
+
+---
+
+contentHost is appearing twice in the metadata list when I select blog
+
+---
+
+also can you put an `add` button next to the content types to generate the metadata table?  Rather than having it run on change?
+
+---
+
+what takes the form so long to load?  is it the loading of the content types? a customer can have 100s of content types.  We might want to switch that to a search rather than a dropdown
+
+---
+
+the folder field does not need to be on the sidebar.  In fact we can remove it from the metadata tab as well.
+
+---
+
+make the Draft and Publish selector into buttons. Instead of mode it should be Sync and when you press one or the other, it syncs with the appropaite endpoint
+
+---
+
+the relationship query is not working
+
+---
+
+here is an example query when searhing blogauthors for "will ezell" `+catchall:will +catchall:ezell +contentType:blogauthor`
+
+---
+
+not getting any results - I think the right endpoint is /api/content/_search
+
+---
+
+you said above you switched to `Switched to POST /api/v1/content/_search endpoint`
+
+---
+
+we should use the POST endpoint
+
+---
+
+it seems it is searching across content types - it needs to only search the type specified in the related field
+
+---
+
+the content type definition relationships has the related content type in it - in the blog's case it looks like `blogauthor.blog`.  In the blog author's case it looks like `blog` this is what the field looks like from the api:
+
+{
+"clazz": "com.dotcms.contenttype.model.field.ImmutableRelationshipField",
+"contentTypeId": "799f176a-d32e-4844-a07c-1b5fcd107578",
+"dataType": "SYSTEM",
+"fieldType": "Relationship",
+"fieldTypeLabel": "Relationships Field",
+"fieldVariables": [],
+"fixed": false,
+"forceIncludeInApi": false,
+"iDate": 1555602646000,
+"id": "8d209e9b-996c-4233-aede-cf6bab81c2a4",
+"indexed": true,
+"listed": false,
+"modDate": 1771019820000,
+"name": "Author",
+"readOnly": false,
+"relationships": {
+"cardinality": 1,
+"isParentField": false,
+"velocityVar": "BlogAuthor.blog"
+},
+"required": false,
+"searchable": false,
+"skipRelationshipCreation": false,
+"sortOrder": 10,
+"unique": false,
+"variable": "author"
+},
+
+---
+
+the bodyfield selector should only allow clazz textAreaField, StoryBlockField and WYSIWYGField fields.
+
+---
+
+it seems like the relationship is not getting persisted
