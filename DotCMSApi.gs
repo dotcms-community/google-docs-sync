@@ -35,7 +35,8 @@ var DotCMSApi = {
         'com.dotcms.contenttype.model.field.impl.TabDividerField',
         'com.dotcms.contenttype.model.field.impl.LineDividerField',
         'com.dotcms.contenttype.model.field.impl.PermissionTabField',
-        'com.dotcms.contenttype.model.field.impl.RelationshipsTabField'
+        'com.dotcms.contenttype.model.field.impl.RelationshipsTabField',
+        'com.dotcms.contenttype.model.field.impl.HostFolderField'
       ];
       return skip.indexOf(f.fieldType) === -1;
     });
@@ -103,7 +104,7 @@ var DotCMSApi = {
     var options = {
       method: 'post',
       contentType: 'multipart/form-data; boundary=' + boundary,
-      headers: { 'Authorization': 'Bearer ' + token },
+      headers: { 'Authorization': 'Bearer ' + token, 'Origin': host },
       payload: allBytes,
       muteHttpExceptions: true
     };
@@ -131,12 +132,8 @@ var DotCMSApi = {
 
     var resp = this._post(host, token, '/api/v1/workflow/actions/default/fire/PUBLISH', payload);
     var entity = resp.entity || {};
-    return {
-      identifier: entity.identifier,
-      inode: entity.inode,
-      assetVersion: entity.assetVersion || '',
-      fileName: entity.fileName || entity.asset || ''
-    };
+
+    return entity;
   },
 
   // ── Fire Workflow (Save or Publish content) ──
@@ -145,7 +142,9 @@ var DotCMSApi = {
     var endpoint = '/api/v1/workflow/actions/default/fire/' + action;
     var payload = { contentlet: contentletData };
     var resp = this._post(host, token, endpoint, payload);
-    return resp.entity || {};
+    var entity = resp.entity || {};
+
+    return entity;
   },
 
   // ── HTTP helpers ──
@@ -160,7 +159,7 @@ var DotCMSApi = {
     }
     var options = {
       method: 'get',
-      headers: { 'Authorization': 'Bearer ' + token },
+      headers: { 'Authorization': 'Bearer ' + token, 'Origin': host },
       muteHttpExceptions: true
     };
     var response = UrlFetchApp.fetch(url, options);
@@ -171,11 +170,13 @@ var DotCMSApi = {
     var options = {
       method: 'post',
       contentType: 'application/json',
-      headers: { 'Authorization': 'Bearer ' + token },
+      headers: { 'Authorization': 'Bearer ' + token, 'Origin': host },
       payload: JSON.stringify(payload),
       muteHttpExceptions: true
     };
     var response = UrlFetchApp.fetch(host + path, options);
-    return JSON.parse(response.getContentText());
+    var text = response.getContentText();
+    Logger.log('POST ' + path + ' response (first 500): ' + text.substring(0, 500));
+    return JSON.parse(text);
   }
 };

@@ -14,10 +14,13 @@ var DocParser = {
   findMetadataTable: function () {
     var doc = DocumentApp.getActiveDocument();
     var body = doc.getBody();
-    var tables = body.getTables();
+    var numChildren = body.getNumChildren();
 
-    for (var i = 0; i < tables.length; i++) {
-      var table = tables[i];
+    for (var i = 0; i < numChildren; i++) {
+      var child = body.getChild(i);
+      if (child.getType() !== DocumentApp.ElementType.TABLE) continue;
+
+      var table = child.asTable();
       if (table.getNumRows() < 1 || table.getRow(0).getNumCells() < 2) continue;
 
       var h1 = table.getRow(0).getCell(0).getText().trim();
@@ -56,37 +59,76 @@ var DocParser = {
    * Only includes required fields (and non-layout, non-relationship fields get free text;
    * selects/booleans get dropdown notation).
    */
+  IDENTIFIER_FIELD: 'identifier',
+
+  /**
+   * Generate or merge the metadata table.
+   * If a table already exists, only add missing required fields (preserving existing values).
+   * If no table exists, create a new one.
+   */
   generateMetadataTable: function (fields) {
     var doc = DocumentApp.getActiveDocument();
     var body = doc.getBody();
 
-    // Filter to required fields only, exclude certain types
     var requiredFields = fields.filter(function (f) {
       return f.required;
     });
 
-    // Build table: header + one row per required field
-    var numRows = requiredFields.length + 1;
-    var table = body.insertTable(0, this._buildTableCells(requiredFields));
+    var existing = this.findMetadataTable();
 
-    // Style header row
-    var headerRow = table.getRow(0);
-    headerRow.getCell(0).setText(this.MARKER_FIELD).setAttributes(this._boldStyle());
-    headerRow.getCell(1).setText(this.MARKER_VALUE).setAttributes(this._boldStyle());
-
-    // Add field rows
-    for (var i = 0; i < requiredFields.length; i++) {
-      var row = table.getRow(i + 1);
-      row.getCell(0).setText(requiredFields[i].variable);
-
-      var hint = this._getFieldHint(requiredFields[i]);
-      if (hint) {
-        row.getCell(1).setText(hint);
+    if (existing) {
+      // Merge: add rows for fields not already in the table
+      var table = existing.table;
+      var existingVars = {};
+      for (var r = 1; r < table.getNumRows(); r++) {
+        var varName = table.getRow(r).getCell(0).getText().trim();
+        if (varName) existingVars[varName] = true;
       }
-    }
 
-    // Insert a paragraph after the table for body content
-    body.insertParagraph(1, '');
+      // Ensure identifier row exists
+      if (!existingVars['identifier']) {
+        var idRow = table.appendTableRow();
+        idRow.appendTableCell('identifier');
+        idRow.appendTableCell('');
+      }
+
+      // Ensure contentType row exists
+      if (!existingVars['contentType']) {
+        var ctRow = table.appendTableRow();
+        ctRow.appendTableCell('contentType');
+        ctRow.appendTableCell('');
+      }
+
+      // Ensure default rows exist
+      var defaults = ['host', 'folder', 'languageId'];
+      for (var d = 0; d < defaults.length; d++) {
+        if (!existingVars[defaults[d]]) {
+          var defRow = table.appendTableRow();
+          defRow.appendTableCell(defaults[d]);
+          defRow.appendTableCell('');
+        }
+      }
+
+      // Add missing required fields
+      for (var i = 0; i < requiredFields.length; i++) {
+        if (!existingVars[requiredFields[i].variable]) {
+          var newRow = table.appendTableRow();
+          newRow.appendTableCell(requiredFields[i].variable);
+          newRow.appendTableCell('');
+        }
+      }
+    } else {
+      // Create new table
+      var table = body.insertTable(0, this._buildTableCells(requiredFields));
+
+      // Style header row
+      var headerRow = table.getRow(0);
+      headerRow.getCell(0).setText(this.MARKER_FIELD).setAttributes(this._boldStyle());
+      headerRow.getCell(1).setText(this.MARKER_VALUE).setAttributes(this._boldStyle());
+
+      // Insert a paragraph after the table for body content
+      body.insertParagraph(1, '');
+    }
 
     return requiredFields;
   },
@@ -108,10 +150,15 @@ var DocParser = {
         return;
       }
     }
+
+    // Row not found — append it
+    var newRow = table.appendTableRow();
+    newRow.appendTableCell(fieldVariable);
+    newRow.appendTableCell(value);
   },
 
   _buildTableCells: function (requiredFields) {
-    var cells = [['Field', 'Value']];
+    var cells = [['Field', 'Value'], ['identifier', ''], ['contentType', ''], ['host', ''], ['folder', ''], ['languageId', '']];
     for (var i = 0; i < requiredFields.length; i++) {
       cells.push([requiredFields[i].variable, '']);
     }
@@ -132,41 +179,164 @@ var DocParser = {
 
   /**
    * Export the body content (everything outside the metadata table) as clean HTML.
-   * Uses the Google Docs export API to get HTML, then strips the metadata table HTML.
+   * Builds HTML directly from DocumentApp elements — no external API needed.
    */
   getBodyHtml: function () {
     var doc = DocumentApp.getActiveDocument();
-    var docId = doc.getId();
+    var body = doc.getBody();
+    var metaTable = this.findMetadataTable();
+    var metaTableIndex = metaTable ? metaTable.tableIndex : -1;
+    var numChildren = body.getNumChildren();
+    var html = '';
 
-    // Export full doc as HTML
-    var url = 'https://docs.google.com/feeds/download/documents/export/Export?id=' + docId + '&exportFormat=html';
-    var token = ScriptApp.getOAuthToken();
-    var response = UrlFetchApp.fetch(url, {
-      headers: { 'Authorization': 'Bearer ' + token },
-      muteHttpExceptions: true
-    });
-    var html = response.getContentText();
+    for (var i = 0; i < numChildren; i++) {
+      if (i === metaTableIndex) continue;
+      html += this._elementToHtml(body.getChild(i));
+    }
 
-    // Clean the HTML
-    html = HtmlCleaner.clean(html);
+    return html.trim();
+  },
 
-    // Remove the metadata table from the HTML
-    html = this._removeFirstTable(html);
+  /**
+   * Convert a DocumentApp element to HTML.
+   */
+  _elementToHtml: function (element) {
+    var type = element.getType();
 
+    if (type === DocumentApp.ElementType.PARAGRAPH) {
+      return this._paragraphToHtml(element.asParagraph());
+    }
+    if (type === DocumentApp.ElementType.LIST_ITEM) {
+      return this._listItemToHtml(element.asListItem());
+    }
+    if (type === DocumentApp.ElementType.TABLE) {
+      return this._tableToHtml(element.asTable());
+    }
+    if (type === DocumentApp.ElementType.HORIZONTAL_RULE) {
+      return '<hr>';
+    }
+
+    // Fallback: extract text
+    var text = element.asText ? element.asText().getText() : '';
+    if (text) return '<p>' + this._escapeHtml(text) + '</p>';
+    return '';
+  },
+
+  _paragraphToHtml: function (para) {
+    var heading = para.getHeading();
+    var content = this._renderInlineContent(para);
+    if (!content && heading === DocumentApp.ParagraphHeading.NORMAL) return '';
+
+    var tag = 'p';
+    switch (heading) {
+      case DocumentApp.ParagraphHeading.HEADING1: tag = 'h1'; break;
+      case DocumentApp.ParagraphHeading.HEADING2: tag = 'h2'; break;
+      case DocumentApp.ParagraphHeading.HEADING3: tag = 'h3'; break;
+      case DocumentApp.ParagraphHeading.HEADING4: tag = 'h4'; break;
+      case DocumentApp.ParagraphHeading.HEADING5: tag = 'h5'; break;
+      case DocumentApp.ParagraphHeading.HEADING6: tag = 'h6'; break;
+    }
+    return '<' + tag + '>' + content + '</' + tag + '>';
+  },
+
+  _listItemToHtml: function (item) {
+    var glyph = item.getGlyphType();
+    var content = this._renderInlineContent(item);
+    // Simple list rendering — nested lists would need tracking state across calls
+    var isOrdered = (glyph === DocumentApp.GlyphType.NUMBER ||
+                     glyph === DocumentApp.GlyphType.LATIN_UPPER ||
+                     glyph === DocumentApp.GlyphType.LATIN_LOWER ||
+                     glyph === DocumentApp.GlyphType.ROMAN_UPPER ||
+                     glyph === DocumentApp.GlyphType.ROMAN_LOWER);
+    var tag = isOrdered ? 'ol' : 'ul';
+    return '<' + tag + '><li>' + content + '</li></' + tag + '>';
+  },
+
+  _tableToHtml: function (table) {
+    var html = '<table>';
+    for (var r = 0; r < table.getNumRows(); r++) {
+      html += '<tr>';
+      var row = table.getRow(r);
+      for (var c = 0; c < row.getNumCells(); c++) {
+        var cell = row.getCell(c);
+        html += '<td>' + this._escapeHtml(cell.getText()) + '</td>';
+      }
+      html += '</tr>';
+    }
+    html += '</table>';
     return html;
   },
 
   /**
-   * Remove the first <table> element from HTML (the metadata table).
+   * Render inline content (text with formatting + inline images) from a paragraph or list item.
    */
-  _removeFirstTable: function (html) {
-    var tableStart = html.indexOf('<table');
-    if (tableStart === -1) return html;
+  _renderInlineContent: function (element) {
+    var html = '';
+    var numChildren = element.getNumChildren();
 
-    var tableEnd = html.indexOf('</table>', tableStart);
-    if (tableEnd === -1) return html;
+    for (var i = 0; i < numChildren; i++) {
+      var child = element.getChild(i);
+      var childType = child.getType();
 
-    return html.substring(0, tableStart) + html.substring(tableEnd + 8);
+      if (childType === DocumentApp.ElementType.TEXT) {
+        html += this._textToHtml(child.asText());
+      } else if (childType === DocumentApp.ElementType.INLINE_IMAGE) {
+        // Placeholder src — will be replaced by ImageHandler with dotAsset URLs
+        html += '<img src="image_placeholder_' + i + '">';
+      } else if (childType === DocumentApp.ElementType.INLINE_DRAWING) {
+        html += '<img src="drawing_placeholder_' + i + '">';
+      }
+    }
+    return html;
+  },
+
+  /**
+   * Convert a Text element to HTML, preserving bold, italic, underline, links.
+   */
+  _textToHtml: function (textEl) {
+    var text = textEl.getText();
+    if (!text) return '';
+
+    var html = '';
+    var i = 0;
+    while (i < text.length) {
+      // Find runs of same formatting
+      var bold = textEl.isBold(i);
+      var italic = textEl.isItalic(i);
+      var underline = textEl.isUnderline(i);
+      var strikethrough = textEl.isStrikethrough(i);
+      var link = textEl.getLinkUrl(i);
+
+      var j = i + 1;
+      while (j < text.length &&
+             textEl.isBold(j) === bold &&
+             textEl.isItalic(j) === italic &&
+             textEl.isUnderline(j) === underline &&
+             textEl.isStrikethrough(j) === strikethrough &&
+             textEl.getLinkUrl(j) === link) {
+        j++;
+      }
+
+      var chunk = this._escapeHtml(text.substring(i, j));
+
+      if (link) chunk = '<a href="' + this._escapeHtml(link) + '">' + chunk + '</a>';
+      if (bold) chunk = '<strong>' + chunk + '</strong>';
+      if (italic) chunk = '<em>' + chunk + '</em>';
+      if (underline) chunk = '<u>' + chunk + '</u>';
+      if (strikethrough) chunk = '<s>' + chunk + '</s>';
+
+      html += chunk;
+      i = j;
+    }
+    return html;
+  },
+
+  _escapeHtml: function (str) {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   },
 
   /**

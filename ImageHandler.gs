@@ -56,18 +56,23 @@ var ImageHandler = {
         var tempId = DotCMSApi.uploadTemp(host, token, img.blob, img.name);
 
         // Step 2: Create dotAsset
-        var dotAsset = DotCMSApi.createDotAsset(host, token, tempId, siteId, folderPath, languageId);
+        var assetEntity = DotCMSApi.createDotAsset(host, token, tempId, siteId, folderPath, languageId);
+        var assetId = _extractIdentifier(assetEntity);
+
+        if (!assetId) {
+          throw new Error('No identifier in dotAsset response: ' + JSON.stringify(assetEntity).substring(0, 200));
+        }
 
         imageMap[img.blobHash] = {
-          identifier: dotAsset.identifier,
-          inode: dotAsset.inode,
-          fileName: dotAsset.fileName
+          identifier: assetId,
+          inode: assetEntity.inode || '',
+          fileName: assetEntity.fileName || ''
         };
 
         uploaded.push({
           name: img.name,
           blobHash: img.blobHash,
-          dotAssetId: dotAsset.identifier,
+          dotAssetId: assetId,
           skipped: false
         });
       } catch (e) {

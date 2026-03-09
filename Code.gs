@@ -72,6 +72,10 @@ function hasExistingMetadataTable() {
   return DocParser.findMetadataTable() !== null;
 }
 
+function getMetadataFields() {
+  return DocParser.extractMetadataFields();
+}
+
 function updateMetadataField(fieldVariable, value) {
   DocParser.updateMetadataField(fieldVariable, value);
 }

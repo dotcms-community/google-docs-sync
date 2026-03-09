@@ -66,9 +66,25 @@
 
   .section { margin-bottom: 12px; }
   .hidden { display: none; }
+
+  /* Loading overlay */
+  .loading-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(255,255,255,0.85); z-index: 100;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .spinner { width: 28px; height: 28px; border: 3px solid #e0e0e0; border-top-color: #1a73e8;
+    border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { margin-top: 10px; font-size: 13px; color: #666; }
 </style>
 </head>
 <body>
+
+<div id="loadingOverlay" class="loading-overlay">
+  <div class="spinner"></div>
+  <div class="loading-text">Loading...</div>
+</div>
 
 <!-- Tabs -->
 <div class="tabs">
@@ -119,7 +135,7 @@
     <!-- Folder -->
     <div class="section">
       <label for="folder">Folder</label>
-      <select id="folder">
+      <select id="folder" onchange="onFolderChange()">
         <option value="">/ (root)</option>
       </select>
     </div>
@@ -135,7 +151,7 @@
     <!-- Language -->
     <div class="section">
       <label for="language">Language</label>
-      <select id="language">
+      <select id="language" onchange="onLanguageChange()">
         <option value="1">Default</option>
       </select>
     </div>
@@ -171,6 +187,17 @@
 <script>
   var currentMode = 'SAVE';
   var currentContentTypeFields = [];
+  var _pendingLoads = 0;
+
+  function startLoad() { _pendingLoads++; }
+  function endLoad() {
+    _pendingLoads--;
+    if (_pendingLoads <= 0) {
+      _pendingLoads = 0;
+      var overlay = document.getElementById('loadingOverlay');
+      if (overlay) overlay.style.display = 'none';
+    }
+  }
 
   // ── Tab switching ──
 
@@ -200,6 +227,7 @@
   }
 
   function loadSettings() {
+    startLoad();
     google.script.run
       .withSuccessHandler(function(s) {
         if (s.hostUrl) document.getElementById('hostUrl').value = s.hostUrl;
@@ -209,7 +237,9 @@
         } else {
           document.getElementById('config-warning').classList.remove('hidden');
         }
+        endLoad();
       })
+      .withFailureHandler(function(e) { endLoad(); })
       .getSettings();
   }
 
@@ -224,6 +254,7 @@
   }
 
   function loadContentTypes() {
+    startLoad();
     google.script.run
       .withSuccessHandler(function(types) {
         var sel = document.getElementById('contentType');
@@ -234,12 +265,38 @@
           opt.textContent = ct.name;
           sel.appendChild(opt);
         });
+        // Auto-select content type from metadata table
+        google.script.run
+          .withSuccessHandler(function(fields) {
+            if (!fields) { endLoad(); return; }
+            var found = false;
+            for (var i = 0; i < fields.length; i++) {
+              if (fields[i].variable === 'contentType' && fields[i].value) {
+                sel.value = fields[i].value;
+                found = true;
+                google.script.run
+                  .withSuccessHandler(function(ctFields) {
+                    currentContentTypeFields = ctFields;
+                    populateBodyFieldDropdown(ctFields);
+                    buildFieldEditor(ctFields);
+                    endLoad();
+                  })
+                  .withFailureHandler(function(e) { endLoad(); })
+                  .getContentTypeFields(fields[i].value);
+                break;
+              }
+            }
+            if (!found) endLoad();
+          })
+          .withFailureHandler(function(e) { endLoad(); })
+          .getMetadataFields();
       })
-      .withFailureHandler(function(e) { showMsg('sync-msg', 'Failed to load content types: ' + e.message, 'error'); })
+      .withFailureHandler(function(e) { showMsg('sync-msg', 'Failed to load content types: ' + e.message, 'error'); endLoad(); })
       .getContentTypes();
   }
 
   function loadSites() {
+    startLoad();
     google.script.run
       .withSuccessHandler(function(sites) {
         var sel = document.getElementById('site');
@@ -250,12 +307,29 @@
           opt.textContent = s.name;
           sel.appendChild(opt);
         });
+        // Auto-select site from metadata table
+        google.script.run
+          .withSuccessHandler(function(fields) {
+            if (!fields) { endLoad(); return; }
+            for (var i = 0; i < fields.length; i++) {
+              if (fields[i].variable === 'host' && fields[i].value) {
+                sel.value = fields[i].value;
+                // Also load folders for this site
+                onSiteChange();
+                break;
+              }
+            }
+            endLoad();
+          })
+          .withFailureHandler(function(e) { endLoad(); })
+          .getMetadataFields();
       })
-      .withFailureHandler(function(e) { showMsg('sync-msg', 'Failed to load sites: ' + e.message, 'error'); })
+      .withFailureHandler(function(e) { showMsg('sync-msg', 'Failed to load sites: ' + e.message, 'error'); endLoad(); })
       .getSites();
   }
 
   function loadLanguages() {
+    startLoad();
     google.script.run
       .withSuccessHandler(function(langs) {
         var sel = document.getElementById('language');
@@ -266,8 +340,23 @@
           opt.textContent = l.language + (l.country ? ' (' + l.country + ')' : '');
           sel.appendChild(opt);
         });
+        // Auto-select language from metadata table
+        google.script.run
+          .withSuccessHandler(function(fields) {
+            if (fields) {
+              for (var i = 0; i < fields.length; i++) {
+                if (fields[i].variable === 'languageId' && fields[i].value) {
+                  sel.value = fields[i].value;
+                  break;
+                }
+              }
+            }
+            endLoad();
+          })
+          .withFailureHandler(function(e) { endLoad(); })
+          .getMetadataFields();
       })
-      .withFailureHandler(function(e) { console.log('Languages error:', e); })
+      .withFailureHandler(function(e) { console.log('Languages error:', e); endLoad(); })
       .getLanguages();
   }
 
@@ -276,18 +365,7 @@
   function onContentTypeChange() {
     var ctVar = document.getElementById('contentType').value;
     if (!ctVar) return;
-
-    // Check if a metadata table already exists
-    google.script.run
-      .withSuccessHandler(function(hasTable) {
-        if (hasTable) {
-          if (!confirm('A metadata table already exists. Switching content types will replace it. Continue?')) {
-            return;
-          }
-        }
-        generateTable(ctVar);
-      })
-      .hasExistingMetadataTable();
+    generateTable(ctVar);
   }
 
   function generateTable(ctVar) {
@@ -296,7 +374,9 @@
         currentContentTypeFields = fields;
         populateBodyFieldDropdown(fields);
         buildFieldEditor(fields);
-        showMsg('sync-msg', 'Metadata table generated with ' + fields.length + ' required field(s).', 'info');
+        // Write contentType after table is generated/merged so the row exists
+        google.script.run.updateMetadataField('contentType', ctVar);
+        showMsg('sync-msg', 'Metadata table updated with ' + fields.length + ' required field(s).', 'info');
       })
       .withFailureHandler(function(e) { showMsg('sync-msg', 'Failed to generate table: ' + e.message, 'error'); })
       .generateMetadataTable(ctVar);
@@ -445,11 +525,11 @@
     var sel = document.getElementById('bodyField');
     sel.innerHTML = '';
 
-    // Find WYSIWYG/textarea/story block fields for body
+    // Find fields eligible as body target
     var bodyFields = fields.filter(function(f) {
       var ft = f.fieldType.toLowerCase();
       return ft.indexOf('wysiwyg') !== -1 || ft.indexOf('textarea') !== -1 ||
-             ft.indexOf('storyblock') !== -1 || ft.indexOf('richtext') !== -1;
+             ft.indexOf('storyblock') !== -1 || ft.indexOf('customfield') !== -1;
     });
 
     if (bodyFields.length === 0) {
@@ -475,6 +555,9 @@
     var siteId = document.getElementById('site').value;
     if (!siteId) return;
 
+    // Update host in the metadata table
+    google.script.run.updateMetadataField('host', siteId);
+
     google.script.run
       .withSuccessHandler(function(folders) {
         var sel = document.getElementById('folder');
@@ -488,6 +571,16 @@
       })
       .withFailureHandler(function(e) { console.log('Folders error:', e); })
       .getFolders(siteId);
+  }
+
+  function onFolderChange() {
+    var folder = document.getElementById('folder').value;
+    google.script.run.updateMetadataField('folder', folder);
+  }
+
+  function onLanguageChange() {
+    var lang = document.getElementById('language').value;
+    google.script.run.updateMetadataField('languageId', lang);
   }
 
   // ── Publish mode toggle ──
@@ -539,8 +632,8 @@
         if (result.status === 'success') {
           showMsg('sync-msg', result.message, 'success');
         } else if (result.status === 'partial') {
-          var failNames = result.failures.map(function(f) { return f.name; }).join(', ');
-          showMsg('sync-msg', result.message + ' Failed: ' + failNames, 'warn');
+          var failDetails = result.failures.map(function(f) { return f.name + (f.error ? ': ' + f.error : ''); }).join('; ');
+          showMsg('sync-msg', result.message + ' Failed: ' + failDetails, 'warn');
         } else {
           showMsg('sync-msg', result.message, 'error');
         }

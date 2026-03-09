@@ -1,10 +1,47 @@
 /**
+ * Extract the dotCMS identifier from a workflow response entity.
+ * If entity.identifier exists, use it.
+ * Otherwise, the identifier is the key whose value is a non-array object.
+ */
+/**
+ * Extract the dotCMS identifier from a workflow response entity.
+ * Response shapes:
+ *   1. { identifier: "..." }                          — identifier is a property
+ *   2. { "<identifier>": { ...contentlet... } }       — identifier is the key
+ *   3. { results: [{ "<identifier>": { ... } }], summary: { ... } } — nested in results array
+ */
+function _extractIdentifier(entity) {
+  if (!entity) return '';
+
+  // Shape 1: identifier is a direct property
+  if (entity.identifier) return entity.identifier;
+
+  // Shape 3: results array — dig into first result
+  if (Array.isArray(entity.results) && entity.results.length > 0) {
+    var firstResult = entity.results[0];
+    if (firstResult.identifier) return firstResult.identifier;
+    // Result is { "<identifier>": { ...contentlet... } }
+    var resultKeys = Object.keys(firstResult);
+    if (resultKeys.length > 0) return resultKeys[0];
+  }
+
+  // Shape 2: identifier is the key of a non-array object value
+  var keys = Object.keys(entity);
+  for (var i = 0; i < keys.length; i++) {
+    var val = entity[keys[i]];
+    if (val && typeof val === 'object' && !Array.isArray(val) && val.baseType) {
+      return keys[i];
+    }
+  }
+  return '';
+}
+
+/**
  * Orchestrates the full sync process: metadata extraction, body HTML,
  * image upload, and content push to dotCMS.
  */
 var SyncEngine = {
 
-  PROP_DOTCMS_ID: 'dotcms_content_identifier',
   PROP_SYNC_LOG: 'dotcms_sync_log',
 
   /**
@@ -58,39 +95,61 @@ var SyncEngine = {
         bodyHtml = ImageHandler.replaceImageUrls(bodyHtml, images, imgResult.imageMap, s.hostUrl);
       }
 
-      // Step 6: Build the contentlet payload
-      var contentlet = {
-        contentType: options.contentType,
-        host: options.siteId,
-        folder: options.folderPath || '',
-        languageId: options.languageId || 1
-      };
+      // Step 6: Build the contentlet payload from metadata table
+      // The metadata table is the single source of truth for all field values.
+      // Sidebar options are fallbacks only.
+      var contentlet = {};
+      var existingId = '';
 
-      // Add metadata fields
       for (var i = 0; i < metadataFields.length; i++) {
         var mf = metadataFields[i];
-        if (mf.variable && mf.value) {
+        if (!mf.variable) continue;
+
+        if (mf.variable === 'identifier') {
+          if (mf.value) existingId = mf.value;
+          continue; // identifier is sent separately below
+        }
+        if (mf.variable === 'inode') {
+          continue; // inode is read-only, written back after save
+        }
+
+        if (mf.value) {
           contentlet[mf.variable] = mf.value;
         }
       }
 
+      // Apply sidebar fallbacks for required fields if not in table
+      if (!contentlet.contentType) contentlet.contentType = options.contentType;
+      if (!contentlet.host) contentlet.host = options.siteId;
+      if (!contentlet.languageId) contentlet.languageId = options.languageId || 1;
+
       // Add body content to the designated body field
       contentlet[options.bodyField || 'body'] = bodyHtml;
 
-      // Check if we're updating an existing content item
-      var existingId = this._getStoredIdentifier();
       if (existingId) {
         contentlet.identifier = existingId;
       }
 
       // Step 7: Fire workflow action (SAVE or PUBLISH)
-      var action = options.publishMode === 'PUBLISH' ? 'PUBLISH' : 'SAVE';
-      var entity = DotCMSApi.fireWorkflow(s.hostUrl, s.apiToken, action, contentlet);
+      var action = options.publishMode === 'PUBLISH' ? 'PUBLISH' : 'EDIT';
+      var fireResult = DotCMSApi.fireWorkflow(s.hostUrl, s.apiToken, action, contentlet);
 
-      // Store the content identifier for future updates
-      if (entity.identifier) {
-        this._storeIdentifier(entity.identifier);
-        result.contentIdentifier = entity.identifier;
+      // Extract identifier from response.
+      // PUBLISH returns: { entity: { identifier: "...", ... } }
+      // EDIT returns:    { entity: { "<identifier>": { ... } } }
+      var returnedId = '';
+      var returnedInode = '';
+
+      returnedId = _extractIdentifier(fireResult);
+      if (fireResult.identifier) returnedInode = fireResult.inode || '';
+
+      // Write the identifier and inode back to the metadata table so subsequent syncs update
+      if (returnedId) {
+        DocParser.updateMetadataField('identifier', returnedId);
+        result.contentIdentifier = returnedId;
+      }
+      if (returnedInode) {
+        DocParser.updateMetadataField('inode', returnedInode);
       }
 
       // Compile results
@@ -102,8 +161,11 @@ var SyncEngine = {
       if (imgResult.failed.length > 0) {
         result.status = 'partial';
         result.message = 'Content synced but ' + imgResult.failed.length + ' image(s) failed to upload.';
+      } else if (!returnedId) {
+        result.status = 'partial';
+        result.message = 'Content sent but no identifier returned.';
       } else {
-        result.message = existingId ? 'Content updated successfully.' : 'Content created successfully.';
+        result.message = existingId ? 'Content updated successfully.' : 'Content created — identifier: ' + returnedId;
       }
 
     } catch (e) {
@@ -122,16 +184,6 @@ var SyncEngine = {
 
   // ── Document property helpers ──
 
-  _getStoredIdentifier: function () {
-    var props = PropertiesService.getDocumentProperties();
-    return props.getProperty(this.PROP_DOTCMS_ID) || '';
-  },
-
-  _storeIdentifier: function (identifier) {
-    var props = PropertiesService.getDocumentProperties();
-    props.setProperty(this.PROP_DOTCMS_ID, identifier);
-  },
-
   _saveSyncLog: function (result) {
     var props = PropertiesService.getDocumentProperties();
     var log = [];
@@ -148,7 +200,7 @@ var SyncEngine = {
       duration: result.duration,
       contentIdentifier: result.contentIdentifier
     });
-    if (log.length > 10) log = log.slice(0, 10);
+    if (log.length > 5) log = log.slice(0, 5);
     props.setProperty(this.PROP_SYNC_LOG, JSON.stringify(log));
   },
 
