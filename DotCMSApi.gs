@@ -175,8 +175,6 @@ var DotCMSApi = {
       muteHttpExceptions: true
     };
     var response = UrlFetchApp.fetch(host + path, options);
-    var text = response.getContentText();
-    Logger.log('POST ' + path + ' response (first 500): ' + text.substring(0, 500));
-    return JSON.parse(text);
+    return JSON.parse(response.getContentText());
   }
 };

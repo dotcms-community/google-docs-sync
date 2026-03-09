@@ -40,12 +40,13 @@ var ImageHandler = {
     for (var i = 0; i < images.length; i++) {
       var img = images[i];
 
-      // Skip if already uploaded (hash match)
-      if (imageMap[img.blobHash]) {
+      // Skip if already uploaded (hash match) — but only if the cached identifier looks valid
+      var cached = imageMap[img.blobHash];
+      if (cached && cached.identifier && cached.identifier.length > 10) {
         uploaded.push({
           name: img.name,
           blobHash: img.blobHash,
-          dotAssetId: imageMap[img.blobHash].identifier,
+          dotAssetId: cached.identifier,
           skipped: true
         });
         continue;
