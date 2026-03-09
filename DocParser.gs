@@ -64,20 +64,39 @@ var DocParser = {
   /**
    * Generate or merge the metadata table.
    * If a table already exists, only add missing required fields (preserving existing values).
-   * If no table exists, create a new one.
+   * If no table exists, create a new one with system + required fields only.
    */
   generateMetadataTable: function (fields) {
     var doc = DocumentApp.getActiveDocument();
     var body = doc.getBody();
 
+    // Detect if there's a custom HostFolderField on this content type
+    var hostFolderField = null;
+    for (var h = 0; h < fields.length; h++) {
+      var ftNorm = fields[h].fieldType.toLowerCase().replace(/-/g, '');
+      if (ftNorm.indexOf('hostfolderfield') !== -1 || ftNorm.indexOf('hostfolder') !== -1) {
+        hostFolderField = fields[h];
+        break;
+      }
+    }
+
+    var hostVar = hostFolderField ? hostFolderField.variable : 'host';
+
+    // Only required non-body, non-system fields go in the table by default
     var requiredFields = fields.filter(function (f) {
-      return f.required;
+      if (!f.required) return false;
+      var ft = f.fieldType.toLowerCase().replace(/-/g, '');
+      if (ft.indexOf('wysiwyg') !== -1 || ft.indexOf('storyblock') !== -1) return false;
+      if (/^fields\d+$/.test(f.variable)) return false;
+      if (ft.indexOf('hostfolder') !== -1) return false;
+      // Skip if this is the hostFolderField (already added as system field)
+      if (hostFolderField && f.variable === hostFolderField.variable) return false;
+      return true;
     });
 
     var existing = this.findMetadataTable();
 
     if (existing) {
-      // Merge: add rows for fields not already in the table
       var table = existing.table;
       var existingVars = {};
       for (var r = 1; r < table.getNumRows(); r++) {
@@ -85,52 +104,70 @@ var DocParser = {
         if (varName) existingVars[varName] = true;
       }
 
-      // Ensure identifier row exists
-      if (!existingVars['identifier']) {
-        var idRow = table.appendTableRow();
-        idRow.appendTableCell('identifier');
-        idRow.appendTableCell('');
-      }
-
-      // Ensure contentType row exists
-      if (!existingVars['contentType']) {
-        var ctRow = table.appendTableRow();
-        ctRow.appendTableCell('contentType');
-        ctRow.appendTableCell('');
-      }
-
-      // Ensure default rows exist
-      var defaults = ['host', 'folder', 'languageId'];
-      for (var d = 0; d < defaults.length; d++) {
-        if (!existingVars[defaults[d]]) {
-          var defRow = table.appendTableRow();
-          defRow.appendTableCell(defaults[d]);
-          defRow.appendTableCell('');
+      var systemFields = ['identifier', 'contentType', hostVar, 'languageId'];
+      for (var s = 0; s < systemFields.length; s++) {
+        if (!existingVars[systemFields[s]]) {
+          var sRow = table.appendTableRow();
+          sRow.appendTableCell(systemFields[s]);
+          sRow.appendTableCell('');
+          existingVars[systemFields[s]] = true;
         }
       }
 
-      // Add missing required fields
       for (var i = 0; i < requiredFields.length; i++) {
-        if (!existingVars[requiredFields[i].variable]) {
+        var rf = requiredFields[i];
+        if (!existingVars[rf.variable]) {
           var newRow = table.appendTableRow();
-          newRow.appendTableCell(requiredFields[i].variable);
-          newRow.appendTableCell('');
+          newRow.appendTableCell(rf.variable);
+          var valCell = newRow.appendTableCell('');
+          this._applyDropdownHint(valCell, rf);
+          existingVars[rf.variable] = true;
         }
       }
     } else {
-      // Create new table
-      var table = body.insertTable(0, this._buildTableCells(requiredFields));
+      var cells = this._buildTableCells(requiredFields, hostVar);
+      var table = body.insertTable(0, cells);
 
-      // Style header row
       var headerRow = table.getRow(0);
       headerRow.getCell(0).setText(this.MARKER_FIELD).setAttributes(this._boldStyle());
       headerRow.getCell(1).setText(this.MARKER_VALUE).setAttributes(this._boldStyle());
 
-      // Insert a paragraph after the table for body content
+      // Apply dropdown hints — system fields are rows 1-5, required fields start at row 6
+      var startRow = 6;
+      for (var j = 0; j < requiredFields.length; j++) {
+        var rowIdx = startRow + j;
+        if (rowIdx < table.getNumRows()) {
+          this._applyDropdownHint(table.getRow(rowIdx).getCell(1), requiredFields[j]);
+        }
+      }
+
       body.insertParagraph(1, '');
     }
 
     return requiredFields;
+  },
+
+  /**
+   * Add a single field to the metadata table (called when user selects an optional field).
+   */
+  addFieldToTable: function (fieldVariable, fieldInfo) {
+    var result = this.findMetadataTable();
+    if (!result) return;
+
+    var table = result.table;
+    // Check if already exists
+    for (var r = 1; r < table.getNumRows(); r++) {
+      if (table.getRow(r).getCell(0).getText().trim() === fieldVariable) {
+        return; // already in table
+      }
+    }
+
+    var newRow = table.appendTableRow();
+    newRow.appendTableCell(fieldVariable);
+    var valCell = newRow.appendTableCell('');
+    if (fieldInfo) {
+      this._applyDropdownHint(valCell, fieldInfo);
+    }
   },
 
   /**
@@ -146,7 +183,10 @@ var DocParser = {
       var row = table.getRow(r);
       if (row.getNumCells() < 2) continue;
       if (row.getCell(0).getText().trim() === fieldVariable) {
-        row.getCell(1).setText(value);
+        var cell = row.getCell(1);
+        cell.setText(value);
+        // Reset hint styling when a real value is set
+        cell.setAttributes(this._normalStyle());
         return;
       }
     }
@@ -157,23 +197,54 @@ var DocParser = {
     newRow.appendTableCell(value);
   },
 
-  _buildTableCells: function (requiredFields) {
-    var cells = [['Field', 'Value'], ['identifier', ''], ['contentType', ''], ['host', ''], ['folder', ''], ['languageId', '']];
-    for (var i = 0; i < requiredFields.length; i++) {
-      cells.push([requiredFields[i].variable, '']);
+  _normalStyle: function () {
+    var style = {};
+    style[DocumentApp.Attribute.ITALIC] = false;
+    style[DocumentApp.Attribute.FOREGROUND_COLOR] = '#000000';
+    return style;
+  },
+
+  _buildTableCells: function (editableFields, hostVar) {
+    var cells = [['Field', 'Value'], ['identifier', ''], ['contentType', ''], [hostVar || 'host', ''], ['languageId', '']];
+    for (var i = 0; i < editableFields.length; i++) {
+      cells.push([editableFields[i].variable, '']);
     }
     return cells;
   },
 
-  _getFieldHint: function (field) {
-    // Select, boolean, and relationship fields are handled by the sidebar Field Editor.
-    // No hints needed in the table — the sidebar writes values directly.
-    return '';
+  /**
+   * For select and boolean fields, set the value cell text to show available options
+   * as a hint. The sidebar Field Editor or manual editing can set the actual value.
+   */
+  _applyDropdownHint: function (cell, field) {
+    var ft = field.fieldType.toLowerCase();
+
+    if (ft.indexOf('select') !== -1 || ft.indexOf('radio') !== -1) {
+      var vals = (field.values || '').split(/\r?\n/).filter(function (v) { return v.trim(); });
+      if (vals.length > 0) {
+        var options = vals.map(function (v) {
+          var parts = v.trim().split('|');
+          return (parts[1] || parts[0]).trim();
+        });
+        cell.setText('[' + options.join(' | ') + ']');
+        cell.setAttributes(this._hintStyle());
+      }
+    } else if (ft.indexOf('boolean') !== -1 || ft.indexOf('checkbox') !== -1) {
+      cell.setText('[true | false]');
+      cell.setAttributes(this._hintStyle());
+    }
   },
 
   _boldStyle: function () {
     var style = {};
     style[DocumentApp.Attribute.BOLD] = true;
+    return style;
+  },
+
+  _hintStyle: function () {
+    var style = {};
+    style[DocumentApp.Attribute.ITALIC] = true;
+    style[DocumentApp.Attribute.FOREGROUND_COLOR] = '#999999';
     return style;
   },
 

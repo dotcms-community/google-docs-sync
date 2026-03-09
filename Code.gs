@@ -31,9 +31,9 @@ function saveSettings(hostUrl, apiToken) {
   SettingsService.save(hostUrl, apiToken);
 }
 
-function getContentTypes() {
+function searchContentTypes(filter) {
   var s = SettingsService.getAll();
-  return DotCMSApi.getContentTypes(s.hostUrl, s.apiToken);
+  return DotCMSApi.getContentTypes(s.hostUrl, s.apiToken, filter || '');
 }
 
 function getContentTypeFields(contentTypeVar) {
@@ -65,7 +65,23 @@ function generateMetadataTable(contentTypeVar) {
   var s = SettingsService.getAll();
   var fields = DotCMSApi.getContentTypeFields(s.hostUrl, s.apiToken, contentTypeVar);
   DocParser.generateMetadataTable(fields);
-  return fields;
+  return fields;  // Return ALL fields so the sidebar can populate body field dropdown
+}
+
+function getHostFieldVar(contentTypeVar) {
+  var s = SettingsService.getAll();
+  var fields = DotCMSApi.getContentTypeFields(s.hostUrl, s.apiToken, contentTypeVar);
+  for (var i = 0; i < fields.length; i++) {
+    var ft = fields[i].fieldType.toLowerCase().replace(/-/g, '');
+    if (ft.indexOf('hostfolder') !== -1) {
+      return fields[i].variable;
+    }
+  }
+  return 'host';
+}
+
+function addFieldToTable(fieldVariable, fieldInfo) {
+  DocParser.addFieldToTable(fieldVariable, fieldInfo);
 }
 
 function hasExistingMetadataTable() {

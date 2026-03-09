@@ -5,8 +5,10 @@ var DotCMSApi = {
 
   // ── Content Types ──
 
-  getContentTypes: function (host, token) {
-    var resp = this._get(host, token, '/api/v1/contenttype?per_page=100&orderby=name');
+  getContentTypes: function (host, token, filter) {
+    var url = '/api/v1/contenttype?per_page=20&orderby=name';
+    if (filter) url += '&filter=' + encodeURIComponent(filter);
+    var resp = this._get(host, token, url);
     var entities = resp.entity || [];
     return entities.map(function (ct) {
       return { name: ct.name, variable: ct.variable, id: ct.id };
@@ -17,6 +19,24 @@ var DotCMSApi = {
     var resp = this._get(host, token, '/api/v1/contenttype/' + contentTypeVar + '/fields');
     var allFields = resp.entity || [];
     return allFields.map(function (f) {
+      // Extract relationship info
+      var relatedContentType = '';
+      var relCardinality = null;
+      if (f.relationships) {
+        relCardinality = f.relationships.cardinality;
+        var velVar = f.relationships.velocityVar || '';
+        if (velVar.indexOf('.') !== -1) {
+          // "BlogAuthor.blog" — the part before the dot is the related content type
+          // unless isParentField is true, then it's the part after the dot
+          if (f.relationships.isParentField) {
+            relatedContentType = velVar.split('.')[1];
+          } else {
+            relatedContentType = velVar.split('.')[0];
+          }
+        } else {
+          relatedContentType = velVar;
+        }
+      }
       return {
         variable: f.variable,
         name: f.name,
@@ -24,8 +44,9 @@ var DotCMSApi = {
         required: !!f.required,
         values: f.values || '',
         dataType: f.dataType || '',
-        relationType: f.relationType || '',
-        cardinality: (typeof f.cardinality !== 'undefined') ? f.cardinality : null
+        relatedContentType: relatedContentType,
+        relationshipVelocityVar: (f.relationships && f.relationships.velocityVar) || '',
+        cardinality: relCardinality !== null ? relCardinality : ((typeof f.cardinality !== 'undefined') ? f.cardinality : null)
       };
     }).filter(function (f) {
       // Exclude layout fields (rows, columns, tabs, line dividers)
@@ -35,8 +56,7 @@ var DotCMSApi = {
         'com.dotcms.contenttype.model.field.impl.TabDividerField',
         'com.dotcms.contenttype.model.field.impl.LineDividerField',
         'com.dotcms.contenttype.model.field.impl.PermissionTabField',
-        'com.dotcms.contenttype.model.field.impl.RelationshipsTabField',
-        'com.dotcms.contenttype.model.field.impl.HostFolderField'
+        'com.dotcms.contenttype.model.field.impl.RelationshipsTabField'
       ];
       return skip.indexOf(f.fieldType) === -1;
     });
@@ -73,11 +93,21 @@ var DotCMSApi = {
   // ── Content Search (for relationship lookups) ──
 
   searchContent: function (host, token, query) {
-    var resp = this._get(host, token, '/api/content/_search', {
+    var resp = this._post(host, token, '/api/content/_search', {
       query: query,
       limit: 20
     });
-    var contentlets = (resp.entity && resp.entity.jsonObjectView && resp.entity.jsonObjectView.contentlets) || resp.contentlets || [];
+    var contentlets = [];
+    // Try various response shapes
+    if (resp.entity && Array.isArray(resp.entity)) {
+      contentlets = resp.entity;
+    } else if (resp.entity && resp.entity.jsonObjectView && resp.entity.jsonObjectView.contentlets) {
+      contentlets = resp.entity.jsonObjectView.contentlets;
+    } else if (resp.contentlets) {
+      contentlets = resp.contentlets;
+    } else if (resp.entity && resp.entity.contentlets) {
+      contentlets = resp.entity.contentlets;
+    }
     return contentlets.map(function (c) {
       return { identifier: c.identifier, title: c.title || c.name || c.identifier, contentType: c.contentType };
     });

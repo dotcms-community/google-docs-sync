@@ -99,7 +99,17 @@ var SyncEngine = {
       // The metadata table is the single source of truth for all field values.
       // Sidebar options are fallbacks only.
       var contentlet = {};
+      var relationships = {};
       var existingId = '';
+
+      // Get content type fields to identify relationship fields
+      var ctFields = DotCMSApi.getContentTypeFields(s.hostUrl, s.apiToken, options.contentType);
+      var relFieldMap = {};
+      for (var rf = 0; rf < ctFields.length; rf++) {
+        if (ctFields[rf].relationshipVelocityVar) {
+          relFieldMap[ctFields[rf].variable] = ctFields[rf].relationshipVelocityVar;
+        }
+      }
 
       for (var i = 0; i < metadataFields.length; i++) {
         var mf = metadataFields[i];
@@ -107,20 +117,34 @@ var SyncEngine = {
 
         if (mf.variable === 'identifier') {
           if (mf.value) existingId = mf.value;
-          continue; // identifier is sent separately below
+          continue;
         }
         if (mf.variable === 'inode') {
-          continue; // inode is read-only, written back after save
+          continue;
         }
 
-        if (mf.value) {
+        // Skip hint values like "[option1 | option2]"
+        if (!mf.value || (mf.value.charAt(0) === '[' && mf.value.charAt(mf.value.length - 1) === ']')) {
+          continue;
+        }
+
+        // Relationship fields go into the relationships object
+        if (relFieldMap[mf.variable]) {
+          var velVar = relFieldMap[mf.variable];
+          var ids = mf.value.split(',').map(function (id) { return id.trim(); }).filter(function (id) { return id; });
+          relationships[velVar] = ids;
+        } else {
           contentlet[mf.variable] = mf.value;
         }
       }
 
       // Apply sidebar fallbacks for required fields if not in table
       if (!contentlet.contentType) contentlet.contentType = options.contentType;
-      if (!contentlet.host) contentlet.host = options.siteId;
+      // Host can be under 'host' or a custom HostFolderField variable
+      var hasHost = Object.keys(contentlet).some(function (k) {
+        return contentlet[k] === options.siteId;
+      });
+      if (!contentlet.host && !hasHost) contentlet.host = options.siteId;
       if (!contentlet.languageId) contentlet.languageId = options.languageId || 1;
 
       // Add body content to the designated body field
@@ -132,6 +156,12 @@ var SyncEngine = {
 
       // Step 7: Fire workflow action (SAVE or PUBLISH)
       var action = options.publishMode === 'PUBLISH' ? 'PUBLISH' : 'EDIT';
+
+      // Attach relationships to the contentlet payload if any exist
+      if (Object.keys(relationships).length > 0) {
+        contentlet.relationships = relationships;
+      }
+
       var fireResult = DotCMSApi.fireWorkflow(s.hostUrl, s.apiToken, action, contentlet);
 
       // Extract identifier from response.

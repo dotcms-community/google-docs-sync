@@ -118,10 +118,16 @@
   <div id="main-form">
     <!-- Content Type -->
     <div class="section">
-      <label for="contentType">Content Type</label>
-      <select id="contentType" onchange="onContentTypeChange()">
-        <option value="">-- Select --</option>
-      </select>
+      <label for="ctSearch">Content Type</label>
+      <div style="display:flex;gap:4px;">
+        <input type="text" id="ctSearch" placeholder="Search content types..." style="flex:1;" onkeydown="if(event.key==='Enter')searchContentTypes()">
+        <button class="btn btn-secondary btn-sm" onclick="searchContentTypes()">Search</button>
+      </div>
+      <div id="ctResults" class="lookup-results" style="display:none;"></div>
+      <div id="ctSelected" style="font-size:12px;color:#555;margin-top:4px;display:none;">
+        <span id="ctSelectedName"></span>
+        <input type="hidden" id="contentType" value="">
+      </div>
     </div>
 
     <!-- Site -->
@@ -132,13 +138,8 @@
       </select>
     </div>
 
-    <!-- Folder -->
-    <div class="section">
-      <label for="folder">Folder</label>
-      <select id="folder" onchange="onFolderChange()">
-        <option value="">/ (root)</option>
-      </select>
-    </div>
+    <!-- Folder (hidden) -->
+    <input type="hidden" id="folder" value="">
 
     <!-- Body Field -->
     <div class="section">
@@ -156,24 +157,30 @@
       </select>
     </div>
 
+    <!-- Add Optional Field -->
+    <div class="section" id="addFieldSection" style="display:none;">
+      <label for="addFieldSelect">Add Field</label>
+      <div style="display:flex;gap:4px;">
+        <select id="addFieldSelect" style="flex:1;">
+          <option value="">-- Select a field --</option>
+        </select>
+        <button class="btn btn-secondary btn-sm" onclick="addFieldClick()">Add</button>
+      </div>
+    </div>
+
     <!-- Field Editor (for select, boolean, relationship fields) -->
     <div class="section" id="fieldEditorSection" style="display:none;">
       <label>Field Editor</label>
       <div id="fieldEditorControls" style="font-size:12px;"></div>
     </div>
 
-    <!-- Publish Mode -->
-    <div class="section">
-      <label>Mode</label>
-      <div class="toggle-group">
-        <button class="toggle-option active" data-mode="SAVE" onclick="setMode('SAVE')">Draft</button>
-        <button class="toggle-option" data-mode="PUBLISH" onclick="setMode('PUBLISH')">Publish</button>
-      </div>
-    </div>
-
-    <!-- Sync Button -->
+    <!-- Sync Buttons -->
     <div class="section" style="margin-top: 16px;">
-      <button id="syncBtn" class="btn btn-primary" onclick="syncClick()">Sync to dotCMS</button>
+      <label>Sync</label>
+      <div style="display:flex;gap:8px;">
+        <button id="draftBtn" class="btn btn-secondary" style="flex:1;" onclick="syncClick('SAVE')">Save Draft</button>
+        <button id="publishBtn" class="btn btn-primary" style="flex:1;" onclick="syncClick('PUBLISH')">Publish</button>
+      </div>
       <div class="progress-bar" id="progressBar"><div class="fill" id="progressFill"></div></div>
     </div>
 
@@ -187,6 +194,7 @@
 <script>
   var currentMode = 'SAVE';
   var currentContentTypeFields = [];
+  var currentHostFieldVar = 'host';
   var _pendingLoads = 0;
 
   function startLoad() { _pendingLoads++; }
@@ -247,52 +255,86 @@
 
   function loadMainData() {
     document.getElementById('config-warning').classList.add('hidden');
-    loadContentTypes();
+    loadContentTypes(); // auto-detect from existing metadata table (no bulk load)
     loadSites();
     loadLanguages();
     loadSyncLog();
   }
 
   function loadContentTypes() {
+    // Auto-detect content type from existing metadata table
     startLoad();
     google.script.run
-      .withSuccessHandler(function(types) {
-        var sel = document.getElementById('contentType');
-        sel.innerHTML = '<option value="">-- Select --</option>';
-        types.forEach(function(ct) {
-          var opt = document.createElement('option');
-          opt.value = ct.variable;
-          opt.textContent = ct.name;
-          sel.appendChild(opt);
-        });
-        // Auto-select content type from metadata table
-        google.script.run
-          .withSuccessHandler(function(fields) {
-            if (!fields) { endLoad(); return; }
-            var found = false;
-            for (var i = 0; i < fields.length; i++) {
-              if (fields[i].variable === 'contentType' && fields[i].value) {
-                sel.value = fields[i].value;
-                found = true;
-                google.script.run
-                  .withSuccessHandler(function(ctFields) {
-                    currentContentTypeFields = ctFields;
-                    populateBodyFieldDropdown(ctFields);
-                    buildFieldEditor(ctFields);
-                    endLoad();
-                  })
-                  .withFailureHandler(function(e) { endLoad(); })
-                  .getContentTypeFields(fields[i].value);
-                break;
-              }
-            }
-            if (!found) endLoad();
-          })
-          .withFailureHandler(function(e) { endLoad(); })
-          .getMetadataFields();
+      .withSuccessHandler(function(fields) {
+        if (!fields) { endLoad(); return; }
+        var found = false;
+        for (var i = 0; i < fields.length; i++) {
+          if (fields[i].variable === 'contentType' && fields[i].value) {
+            var ctVar = fields[i].value;
+            document.getElementById('contentType').value = ctVar;
+            document.getElementById('ctSearch').value = ctVar;
+            document.getElementById('ctSelected').style.display = 'block';
+            document.getElementById('ctSelectedName').textContent = 'Selected: ' + ctVar;
+            found = true;
+            google.script.run
+              .withSuccessHandler(function(ctFields) {
+                currentContentTypeFields = ctFields;
+                populateBodyFieldDropdown(ctFields);
+                buildFieldEditor(ctFields);
+                populateAddFieldDropdown(ctFields);
+                endLoad();
+              })
+              .withFailureHandler(function(e) { endLoad(); })
+              .getContentTypeFields(ctVar);
+            // Also get host field var
+            google.script.run
+              .withSuccessHandler(function(hostVar) { currentHostFieldVar = hostVar; })
+              .getHostFieldVar(ctVar);
+            break;
+          }
+        }
+        if (!found) endLoad();
       })
-      .withFailureHandler(function(e) { showMsg('sync-msg', 'Failed to load content types: ' + e.message, 'error'); endLoad(); })
-      .getContentTypes();
+      .withFailureHandler(function(e) { endLoad(); })
+      .getMetadataFields();
+  }
+
+  function searchContentTypes() {
+    var query = document.getElementById('ctSearch').value.trim();
+    var results = document.getElementById('ctResults');
+    results.style.display = 'block';
+    results.innerHTML = '<div style="padding:6px;color:#999;">Searching...</div>';
+
+    google.script.run
+      .withSuccessHandler(function(types) {
+        results.innerHTML = '';
+        if (!types || types.length === 0) {
+          results.innerHTML = '<div style="padding:6px;color:#999;">No results found.</div>';
+          return;
+        }
+        types.forEach(function(ct) {
+          var div = document.createElement('div');
+          div.className = 'lookup-item';
+          div.textContent = ct.name + ' (' + ct.variable + ')';
+          div.onclick = function() {
+            selectContentType(ct.variable, ct.name);
+            results.style.display = 'none';
+          };
+          results.appendChild(div);
+        });
+      })
+      .withFailureHandler(function(e) {
+        results.innerHTML = '<div style="padding:6px;color:#d93025;">Error: ' + e.message + '</div>';
+      })
+      .searchContentTypes(query);
+  }
+
+  function selectContentType(ctVar, ctName) {
+    document.getElementById('contentType').value = ctVar;
+    document.getElementById('ctSearch').value = '';
+    document.getElementById('ctSelected').style.display = 'block';
+    document.getElementById('ctSelectedName').textContent = 'Selected: ' + ctName + ' (' + ctVar + ')';
+    generateTable(ctVar);
   }
 
   function loadSites() {
@@ -312,7 +354,8 @@
           .withSuccessHandler(function(fields) {
             if (!fields) { endLoad(); return; }
             for (var i = 0; i < fields.length; i++) {
-              if (fields[i].variable === 'host' && fields[i].value) {
+              // Match either 'host' or the custom HostFolderField variable
+              if ((fields[i].variable === 'host' || fields[i].variable === currentHostFieldVar) && fields[i].value) {
                 sel.value = fields[i].value;
                 // Also load folders for this site
                 onSiteChange();
@@ -364,19 +407,28 @@
 
   function onContentTypeChange() {
     var ctVar = document.getElementById('contentType').value;
-    if (!ctVar) return;
+    if (!ctVar) {
+      showMsg('sync-msg', 'Please search and select a content type first.', 'error');
+      return;
+    }
     generateTable(ctVar);
   }
 
   function generateTable(ctVar) {
+    // Get the host field variable for this content type
+    google.script.run
+      .withSuccessHandler(function(hostVar) { currentHostFieldVar = hostVar; })
+      .getHostFieldVar(ctVar);
+
     google.script.run
       .withSuccessHandler(function(fields) {
         currentContentTypeFields = fields;
         populateBodyFieldDropdown(fields);
         buildFieldEditor(fields);
+        populateAddFieldDropdown(fields);
         // Write contentType after table is generated/merged so the row exists
         google.script.run.updateMetadataField('contentType', ctVar);
-        showMsg('sync-msg', 'Metadata table updated with ' + fields.length + ' required field(s).', 'info');
+        showMsg('sync-msg', 'Metadata table ready.', 'info');
       })
       .withFailureHandler(function(e) { showMsg('sync-msg', 'Failed to generate table: ' + e.message, 'error'); })
       .generateMetadataTable(ctVar);
@@ -390,7 +442,7 @@
     var hasSpecialFields = false;
 
     fields.forEach(function(f) {
-      if (!f.required) return;
+      // Show editor controls for all select, boolean, and relationship fields
       var ft = f.fieldType.toLowerCase();
 
       // Select / Radio fields
@@ -502,7 +554,7 @@
             .withFailureHandler(function(e) {
               results.innerHTML = '<div style="padding:6px;color:#d93025;">Error: ' + e.message + '</div>';
             })
-            .searchContent('+contentType:' + (f.relationType || '*') + ' +(' + query + ')');
+            .searchContent(buildRelationshipQuery(query, f.relatedContentType));
         };
 
         // Allow Enter key to search
@@ -515,6 +567,79 @@
     document.getElementById('fieldEditorSection').style.display = hasSpecialFields ? 'block' : 'none';
   }
 
+  function populateAddFieldDropdown(allFields) {
+    var sel = document.getElementById('addFieldSelect');
+    sel.innerHTML = '<option value="">-- Select a field --</option>';
+
+    // Get fields currently in the metadata table
+    google.script.run
+      .withSuccessHandler(function(metaFields) {
+        var inTable = {};
+        if (metaFields) {
+          metaFields.forEach(function(mf) { inTable[mf.variable] = true; });
+        }
+        // Also exclude system fields
+        var system = { identifier: 1, contentType: 1, host: 1, folder: 1, languageId: 1 };
+        system[currentHostFieldVar] = 1;
+
+        var optionalFields = allFields.filter(function(f) {
+          if (inTable[f.variable] || system[f.variable]) return false;
+          var ft = f.fieldType.toLowerCase().replace(/-/g, '');
+          if (ft.indexOf('wysiwyg') !== -1 || ft.indexOf('storyblock') !== -1) return false;
+          if (/^fields\d+$/.test(f.variable)) return false;
+          if (ft.indexOf('hostfolderfield') !== -1) return false;
+          return true;
+        });
+
+        optionalFields.forEach(function(f) {
+          var opt = document.createElement('option');
+          opt.value = f.variable;
+          opt.textContent = f.name + ' (' + f.variable + ')';
+          sel.appendChild(opt);
+        });
+
+        document.getElementById('addFieldSection').style.display = optionalFields.length > 0 ? 'block' : 'none';
+      })
+      .getMetadataFields();
+  }
+
+  function addFieldClick() {
+    var sel = document.getElementById('addFieldSelect');
+    var fieldVar = sel.value;
+    if (!fieldVar) return;
+
+    // Find the field info from the current fields
+    var fieldInfo = null;
+    for (var i = 0; i < currentContentTypeFields.length; i++) {
+      if (currentContentTypeFields[i].variable === fieldVar) {
+        fieldInfo = currentContentTypeFields[i];
+        break;
+      }
+    }
+
+    google.script.run
+      .withSuccessHandler(function() {
+        // Remove from dropdown and refresh
+        var opt = sel.querySelector('option[value="' + fieldVar + '"]');
+        if (opt) opt.remove();
+        sel.value = '';
+        if (sel.options.length <= 1) {
+          document.getElementById('addFieldSection').style.display = 'none';
+        }
+        showMsg('sync-msg', 'Added "' + fieldVar + '" to metadata table.', 'info');
+      })
+      .addFieldToTable(fieldVar, fieldInfo);
+  }
+
+  function buildRelationshipQuery(searchText, relatedContentType) {
+    var words = searchText.trim().split(/\s+/);
+    var q = words.map(function(w) { return '+catchall:' + w; }).join(' ');
+    if (relatedContentType) {
+      q += ' +contentType:' + relatedContentType;
+    }
+    return q;
+  }
+
   function updateDocField(fieldVariable, value) {
     google.script.run
       .withFailureHandler(function(e) { console.log('Failed to update field:', e); })
@@ -524,12 +649,10 @@
   function populateBodyFieldDropdown(fields) {
     var sel = document.getElementById('bodyField');
     sel.innerHTML = '';
-
-    // Find fields eligible as body target
+    // Only TextArea, StoryBlock, and WYSIWYG fields can be body targets
     var bodyFields = fields.filter(function(f) {
-      var ft = f.fieldType.toLowerCase();
-      return ft.indexOf('wysiwyg') !== -1 || ft.indexOf('textarea') !== -1 ||
-             ft.indexOf('storyblock') !== -1 || ft.indexOf('customfield') !== -1;
+      var ft = f.fieldType.toLowerCase().replace(/-/g, '');
+      return ft.indexOf('textarea') !== -1 || ft.indexOf('storyblock') !== -1 || ft.indexOf('wysiwyg') !== -1;
     });
 
     if (bodyFields.length === 0) {
@@ -555,27 +678,8 @@
     var siteId = document.getElementById('site').value;
     if (!siteId) return;
 
-    // Update host in the metadata table
-    google.script.run.updateMetadataField('host', siteId);
-
-    google.script.run
-      .withSuccessHandler(function(folders) {
-        var sel = document.getElementById('folder');
-        sel.innerHTML = '<option value="">/ (root)</option>';
-        folders.forEach(function(f) {
-          var opt = document.createElement('option');
-          opt.value = f.path;
-          opt.textContent = f.path;
-          sel.appendChild(opt);
-        });
-      })
-      .withFailureHandler(function(e) { console.log('Folders error:', e); })
-      .getFolders(siteId);
-  }
-
-  function onFolderChange() {
-    var folder = document.getElementById('folder').value;
-    google.script.run.updateMetadataField('folder', folder);
+    // Update the host field in the metadata table (uses custom HostFolderField variable if present)
+    google.script.run.updateMetadataField(currentHostFieldVar, siteId);
   }
 
   function onLanguageChange() {
@@ -583,18 +687,10 @@
     google.script.run.updateMetadataField('languageId', lang);
   }
 
-  // ── Publish mode toggle ──
-
-  function setMode(mode) {
-    currentMode = mode;
-    document.querySelectorAll('.toggle-option').forEach(function(btn) {
-      btn.classList.toggle('active', btn.getAttribute('data-mode') === mode);
-    });
-  }
-
   // ── Sync ──
 
-  function syncClick() {
+  function syncClick(mode) {
+    currentMode = mode;
     var ct = document.getElementById('contentType').value;
     var site = document.getElementById('site').value;
     var folder = document.getElementById('folder').value;
@@ -604,9 +700,11 @@
     if (!ct) { showMsg('sync-msg', 'Please select a content type.', 'error'); return; }
     if (!site) { showMsg('sync-msg', 'Please select a site.', 'error'); return; }
 
-    var btn = document.getElementById('syncBtn');
-    btn.disabled = true;
-    btn.textContent = 'Syncing...';
+    document.getElementById('draftBtn').disabled = true;
+    document.getElementById('publishBtn').disabled = true;
+    var activeBtn = mode === 'PUBLISH' ? document.getElementById('publishBtn') : document.getElementById('draftBtn');
+    var origText = activeBtn.textContent;
+    activeBtn.textContent = 'Syncing...';
     showProgress(true, 10);
     showMsg('sync-msg', '', '');
 
@@ -626,8 +724,9 @@
         showProgress(true, 100);
         setTimeout(function() { showProgress(false); }, 500);
 
-        btn.disabled = false;
-        btn.textContent = 'Sync to dotCMS';
+        document.getElementById('draftBtn').disabled = false;
+        document.getElementById('publishBtn').disabled = false;
+        activeBtn.textContent = origText;
 
         if (result.status === 'success') {
           showMsg('sync-msg', result.message, 'success');
@@ -642,8 +741,9 @@
       })
       .withFailureHandler(function(e) {
         showProgress(false);
-        btn.disabled = false;
-        btn.textContent = 'Sync to dotCMS';
+        document.getElementById('draftBtn').disabled = false;
+        document.getElementById('publishBtn').disabled = false;
+        activeBtn.textContent = origText;
         showMsg('sync-msg', 'Sync error: ' + e.message, 'error');
       })
       .syncToDocCMS(options);
