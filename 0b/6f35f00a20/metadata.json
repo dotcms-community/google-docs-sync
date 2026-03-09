@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "0b6f35f00a20",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "ImageHandler.gs"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0b/6f35f00a20/0/metadata.json",
+      "transcript": "/0b/6f35f00a20/0/full.jsonl",
+      "content_hash": "/0b/6f35f00a20/0/content_hash.txt",
+      "prompt": "/0b/6f35f00a20/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 17,
+    "cache_creation_tokens": 3760,
+    "cache_read_tokens": 966796,
+    "output_tokens": 1753,
+    "api_call_count": 9
+  }
+}

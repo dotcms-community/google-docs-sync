@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "0b6f35f00a20",
+  "session_id": "2d80e712-5a3e-464b-8eda-e1d947902e36",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-09T02:07:00.808993Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "ImageHandler.gs"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-6",
+  "turn_id": "06ff68361711",
+  "checkpoint_transcript_start": 544,
+  "transcript_lines_at_start": 544,
+  "token_usage": {
+    "input_tokens": 17,
+    "cache_creation_tokens": 3760,
+    "cache_read_tokens": 966796,
+    "output_tokens": 1753,
+    "api_call_count": 9
+  },
+  "session_metrics": {
+    "turn_count": 21
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-09T02:07:00.458857Z",
+    "agent_lines": 4,
+    "human_added": 1,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 5,
+    "agent_percentage": 80
+  }
+}

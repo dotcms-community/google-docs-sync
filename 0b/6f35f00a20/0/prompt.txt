@@ -1,0 +1,1 @@
+ok the image now works.  Do you need to cleanup and commit?
