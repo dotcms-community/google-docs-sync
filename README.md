@@ -2,6 +2,13 @@
 
 A Google Apps Script sidebar add-on that pushes Google Doc content to dotCMS as structured content.
 
+
+<img width="2524" height="1372" alt="Screenshot 2026-03-10 at 10 06 12 AM" src="https://github.com/user-attachments/assets/16065e86-d302-412b-97c4-1e50cafee536" />
+
+
+
+
+
 ## How It Works
 
 1. **Configure** your dotCMS host URL and API token in the Settings tab
@@ -63,7 +70,7 @@ clasp create --type docs --title "dotCMS Sync"
 clasp push
 
 # Open the script editor
-clasp open
+clasp open-script
 ```
 
 Then open the bound Google Doc, refresh, and go to **Extensions → dotCMS Sync → Open Sidebar**.
