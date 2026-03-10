@@ -1,0 +1,322 @@
+can you make sure when converting a google doc with code in it, it gets wrapped in the appropiate tags.  When converting inline code it should be wrapped in <code></code> tag.  When  converting a code block, it should get wrapped in a <pre></pre>.  This will help us maintain the code styles
+
+---
+
+also, when a content type has been selected, we need to hide the search box and only show the selected content type in bold.  There should be an X icon next to the content type that, if clicked will remove the selected content type and show the searchbox again.
+
+---
+
+the X needs to be a button
+
+---
+
+can you also remove the add button for adding fields to the metadata and add the field when the select is changed
+
+---
+
+the image field is a special type of field.  It stores a pointer to the image that already exists.  If there is a image (.png, jpeg....) in the value column of the image or file field, you should use the same logic as you do for images in the body - upload them to the tempapi, then save a dotAsset with the returned temp id.  You then need to replace the image in the image field value with the id for the newly created asset.
+
+---
+
+is there a way we could show the image and the identifer in the field value and if the identifier is there under the image, we do not reupload and assume that is the value?
+
+---
+
+can you make the selected content type and X button look like a chip?
+
+---
+
+When a user selects the body field, can you add the value to the metadata table with a key called - dotBodyField.  And when a document is loaded, we should read that field if it exists and use it for the body field selector.
+
+---
+
+it seems like the site dropdown is not reading the value of the custom hostfolder field - it should read the value of any custom hostfolder field from the metata and if that does not exist, look  for a `host` metadata value and then use that to select the site
+
+---
+
+nope.  This automatically added another field to my content type called host when value was already in my metadata called contentHost
+
+---
+
+you need to read the content type information and scan if there is a field of clazz "*HostFolderField"  If so, store that variable as the right metadata field to read and write the host to.  If there is no HostFolderField, then you can add a host field to the metadata if one is not there already
+
+---
+
+it still added another host field when the sidebar loads, even though there is already a custom host field defined
+
+---
+
+can you share the shape of the data you are pushing into dotCMS? Asking because the relationships are not making it in there
+
+---
+
+the fieldVar for sending relationships is not the same as the content type to search for.  You need to send the field variable property like we use for the other fields.
+
+---
+
+no, in the case of the blogs, the relationship field var is "author"  You can see it in the JSON here:
+{
+"clazz": "com.dotcms.contenttype.model.field.ImmutableRelationshipField",
+"contentTypeId": "799f176a-d32e-4844-a07c-1b5fcd107578",
+"dataType": "SYSTEM",
+"fieldType": "Relationship",
+"fieldTypeLabel": "Relationships Field",
+"fieldVariables": [],
+"fixed": false,
+"forceIncludeInApi": false,
+"iDate": 1555602646000,
+"id": "8d209e9b-996c-4233-aede-cf6bab81c2a4",
+"indexed": true,
+"listed": false,
+"modDate": 1771019820000,
+"name": "Author",
+"readOnly": false,
+"relationships": {
+"cardinality": 1,
+"isParentField": false,
+"velocityVar": "BlogAuthor.blog"
+},
+"required": false,
+"searchable": false,
+"skipRelationshipCreation": false,
+"sortOrder": 10,
+"unique": false,
+"variable": "author"   <<<<<<<<<<<<<<<<
+},
+
+---
+
+I think the content need a property called {title: ...., "author": ["identifier"]}
+
+---
+
+I think you put the whole response into the identifer row.  It looks like :
+
+---
+
+/context-mode
+
+---
+
+there, synced
+
+---
+
+filesystem:https://docs.google.com/persistent/docs/fonts/REDACTED.woff2:1  Failed to load resource: net::ERR_FILE_NOT_FOUND
+filesystem:https://docs.google.com/persistent/docs/fonts/REDACTED.woff2:1  Failed to load resource: net::ERR_FILE_NOT_FOUND
+filesystem:https://docs.google.com/persistent/docs/fonts/REDACTED.woff2:1  Failed to load resource: net::ERR_FILE_NOT_FOUND
+filesystem:https://docs.google.com/persistent/docs/fonts/REDACTED.woff2:1  Failed to load resource: net::ERR_FILE_NOT_FOUND
+filesystem:https://docs.google.com/persistent/docs/fonts/REDACTED.woff2:1  Failed to load resource: net::ERR_FILE_NOT_FOUND
+filesystem:https://docs.google.com/persistent/docs/fonts/REDACTED.woff2:1  Failed to load resource: net::ERR_FILE_NOT_FOUND
+filesystem:https://docs.google.com/persistent/docs/fonts/REDACTED.woff2:1  Failed to load resource: net::ERR_FILE_NOT_FOUND
+filesystem:https://docs.google.com/persistent/docs/fonts/REDACTED.woff2:1  Failed to load resource: net::ERR_FILE_NOT_FOUND
+filesystem:https://docs.google.com/persistent/docs/fonts/X7nm4bA-A_-9jbjWawa_zs7pGg.woff2:1  Failed to load resource: net::ERR_FILE_NOT_FOUND
+filesystem:https://docs.google.com/persistent/docs/fonts/X7ng4bA-A_-9jbjWaza4xMnLGADx.woff2:1  Failed to load resource: net::ERR_FILE_NOT_FOUND
+filesystem:https://docs.google.com/persistent/docs/fonts/X7nh4bA-A_-9jbjWaz4G4ezkMAr57w.woff2:1  Failed to load resource: net::ERR_FILE_NOT_FOUND
+filesystem:https://docs.google.com/persistent/docs/fonts/X7nj4bA-A_-9jbjWaza4_HDkOg3b7XZz.woff2:1  Failed to load resource: net::ERR_FILE_NOT_FOUND
+csp.withgoogle.com/csp/proto/26981ed0d57bbad37e728ff58134270c:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+invalid/:1  Failed to load resource: net::ERR_FAILED
+invalid/:1  Failed to load resource: net::ERR_FAILED
+/drivesharing/clientmodel?REDACTED&foreignService=kix&authuser=0&origin=https%3A%2F%2Fdocs.google.com:1 An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing.
+invalid/:1  Failed to load resource: net::ERR_FAILED
+csp.withgoogle.com/csp/proto/26981ed0d57bbad37e728ff58134270c:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+csp.withgoogle.com/csp/proto/26981ed0d57bbad37e728ff58134270c:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+csp.withgoogle.com/csp/proto/26981ed0d57bbad37e728ff58134270c:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+csp.withgoogle.com/csp/proto/26981ed0d57bbad37e728ff58134270c:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+csp.withgoogle.com/csp/proto/26981ed0d57bbad37e728ff58134270c:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+csp.withgoogle.com/csp/proto/26981ed0d57bbad37e728ff58134270c:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+csp.withgoogle.com/csp/proto/26981ed0d57bbad37e728ff58134270c:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+csp.withgoogle.com/csp/proto/26981ed0d57bbad37e728ff58134270c:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+csp.withgoogle.com/csp/proto/26981ed0d57bbad37e728ff58134270c:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+csp.withgoogle.com/csp/proto/26981ed0d57bbad37e728ff58134270c:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+invalid/:1  Failed to load resource: net::ERR_FAILED
+play.google.com/log?hasfast=true&auth=SAPISIDHASH+7a9933bfc0069f5ec5010eb75dc004e3f1ced3a0+SAPISID1PHASH+7a9933bfc0069f5ec5010eb75dc004e3f1ced3a0+SAPISID3PHASH+7a9933bfc0069f5ec5010eb75dc004e3f1ced3a0&authuser=0&format=json:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+play.google.com/log?hasfast=true&auth=SAPISIDHASH+7a9933bfc0069f5ec5010eb75dc004e3f1ced3a0+SAPISID1PHASH+7a9933bfc0069f5ec5010eb75dc004e3f1ced3a0+SAPISID3PHASH+7a9933bfc0069f5ec5010eb75dc004e3f1ced3a0&authuser=0&format=json:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENT
+invalid/:1  Failed to load resource: net::ERR_FAILED
+m=kix_tertiary:12748 Unrecognized feature: 'ambient-light-sensor'.
+(anonymous) @ m=kix_tertiary:12748
+m=kix_tertiary:12748 Unrecognized feature: 'speaker'.
+(anonymous) @ m=kix_tertiary:12748
+m=kix_tertiary:12748 Unrecognized feature: 'vr'.
+(anonymous) @ m=kix_tertiary:12748
+iframedAppPanel?REDACTED…:9 Unrecognized feature: 'vibrate'.
+userCodeAppPanel:1 Unrecognized feature: 'ambient-light-sensor'.
+userCodeAppPanel:1 Unrecognized feature: 'speaker'.
+userCodeAppPanel:1 Unrecognized feature: 'vibrate'.
+userCodeAppPanel:1 Unrecognized feature: 'vr'.
+userCodeAppPanel:1 [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) <input type=​"password" id=​"apiToken" placeholder=​"Your API token">​
+3672775672-warden_bin_i18n_warden.js:149 Net state changed from IDLE to BUSY
+3672775672-warden_bin_i18n_warden.js:282 Jt
+  google.script.run.withSuccessHandler(console.log).getDebugFireResult();
+VM19270:1 Uncaught TypeError: Cannot read properties of undefined (reading 'run')
+    at <anonymous>:1:17
+(anonymous) @ VM19270:1
+3672775672-warden_bin_i18n_warden.js:149 Net state changed from BUSY to IDLE
+3672775672-warden_bin_i18n_warden.js:149 Net state changed from IDLE to BUSY
+3672775672-warden_bin_i18n_warden.js:149 Net state changed from BUSY to IDLE
+rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:184  POST https://play.google.com/log?hasfast=true&auth=SAPISIDHASH+7a9933bfc0069f5ec5010eb75dc004e3f1ced3a0+SAPISID1PHASH+7a9933bfc0069f5ec5010eb75dc004e3f1ced3a0+SAPISID3PHASH+7a9933bfc0069f5ec5010eb75dc004e3f1ced3a0&authuser=0&format=json net::ERR_BLOCKED_BY_CLIENT
+(anonymous) @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:184
+jl @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:187
+dl @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:183
+flush @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:190
+flush @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:665
+flush @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:656
+o @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:667
+Bf @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:34
+(anonymous) @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:33
+_.n.Ri @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:85
+c @ m=kix_core:6316
+  google.script.run.withSuccessHandler(console.log).getDebugFireResult();
+VM19274:1 Uncaught TypeError: Cannot read properties of undefined (reading 'run')
+    at <anonymous>:1:17
+(anonymous) @ VM19274:1
+  google.script.run.withSuccessHandler(console.log).getDebugFireResult();
+VM19280:1 Uncaught TypeError: Cannot read properties of undefined (reading 'run')
+    at <anonymous>:1:17
+(anonymous) @ VM19280:1
+3672775672-warden_bin_i18n_warden.js:149 Net state changed from IDLE to BUSY
+3672775672-warden_bin_i18n_warden.js:149 Net state changed from BUSY to IDLE
+3672775672-warden_bin_i18n_warden.js:149 Net state changed from IDLE to BUSY
+3672775672-warden_bin_i18n_warden.js:149 Net state changed from BUSY to IDLE
+m=kix_core:2970 [Violation] Added non-passive event listener to a scroll-blocking 'touchstart' event. Consider marking event handler as 'passive' to make the page more responsive. See https://www.chromestatus.com/feature/5745543795965952
+Moe @ m=kix_core:2970
+(anonymous) @ m=kix_core:2969
+(anonymous) @ m=kix_core:2969
+(anonymous) @ m=kix_core:3402
+Ckj @ m=kix_app:2740
+Lkj @ m=kix_app:2742
+_.Okj @ m=kix_app:2743
+(anonymous) @ m=kix_app:5685
+(anonymous) @ m=kix_app:5914
+(anonymous) @ m=kix_app:5927
+d4e @ m=kix_core:3695
+(anonymous) @ m=kix_core:6190
+Tuf @ m=kix_core:4208
+(anonymous) @ m=kix_core:4208
+(anonymous) @ m=kix_core:4699
+(anonymous) @ m=kix_core:5018
+(anonymous) @ m=kix_core:692
+(anonymous) @ m=kix_core:4699
+(anonymous) @ m=kix_core:5018
+(anonymous) @ m=kix_core:1784
+(anonymous) @ m=kix_core:4699
+(anonymous) @ m=kix_core:5018
+z$c @ m=kix_core:1782
+_.D.Ux @ m=kix_core:5147
+_.D.Ux @ m=kix_core:5151
+_.D.Pi @ m=kix_core:5150
+_.D.Pi @ m=kix_core:5354
+YFd @ m=kix_core:2245
+eGd @ m=kix_core:2245
+_.D.rk @ m=kix_core:5986
+_.D.rk @ m=kix_core:6005
+(anonymous) @ m=kix_core:6003
+(anonymous) @ m=kix_core:2974
+Toe @ m=kix_core:2974
+c @ m=kix_core:6316
+(anonymous) @ m=kix_core:6316
+a @ m=kix_core:2971
+3672775672-warden_bin_i18n_warden.js:149 Net state changed from IDLE to BUSY
+rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:184  POST https://play.google.com/log?hasfast=true&auth=SAPISIDHASH+7a9933bfc0069f5ec5010eb75dc004e3f1ced3a0+SAPISID1PHASH+7a9933bfc0069f5ec5010eb75dc004e3f1ced3a0+SAPISID3PHASH+7a9933bfc0069f5ec5010eb75dc004e3f1ced3a0&authuser=0&format=json net::ERR_BLOCKED_BY_CLIENT
+(anonymous) @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:184
+jl @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:187
+dl @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:183
+flush @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:190
+flush @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:665
+flush @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:656
+o @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:667
+Bf @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:34
+(anonymous) @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:33
+_.n.Ri @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:85
+c @ m=kix_core:6316
+setTimeout
+(anonymous) @ m=kix_core:4181
+(anonymous) @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:85
+Av @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:666
+bv @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:667
+tc @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:660
+v @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:669
+g @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:673
+Ey @ edit:1
+x @ VM19080:1
+3672775672-warden_bin_i18n_warden.js:149 Net state changed from BUSY to IDLE
+3672775672-warden_bin_i18n_warden.js:149 Net state changed from IDLE to BUSY
+3672775672-warden_bin_i18n_warden.js:149 Net state changed from BUSY to IDLE
+rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:184  POST https://play.google.com/log?hasfast=true&auth=SAPISIDHASH+7a9933bfc0069f5ec5010eb75dc004e3f1ced3a0+SAPISID1PHASH+7a9933bfc0069f5ec5010eb75dc004e3f1ced3a0+SAPISID3PHASH+7a9933bfc0069f5ec5010eb75dc004e3f1ced3a0&authuser=0&format=json net::ERR_BLOCKED_BY_CLIENT
+(anonymous) @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:184
+jl @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:187
+dl @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:183
+flush @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:190
+flush @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:665
+flush @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:656
+o @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:667
+Bf @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:34
+(anonymous) @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:33
+_.n.Ri @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:85
+c @ m=kix_core:6316
+setTimeout
+(anonymous) @ m=kix_core:4181
+(anonymous) @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:85
+Av @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:666
+bv @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:667
+tc @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:660
+v @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:669
+g @ rs=AA2YrTuZC98Fi6zp80RiAYa68dJT68miaQ:673
+Ey @ edit:1
+x @ VM19080:1
+ google.script.run.withSuccessHandler(console.log).getDebugFireResult();
+undefined
+3672775672-warden_bin_i18n_warden.js:149 Net state changed from IDLE to BUSY
+3672775672-warden_bin_i18n_warden.js:149 Net state changed from BUSY to IDLE
+1691193527-mae_html_user_bin_i18n_mae_html_user.js:212 {"results":[{"{contentType=Blog, contentHost=48190c8c-42c4-46af-8d1a-0cd5db894797, title=This is a title, urlTitle=here-is-a-title, tags=Tag one, tag 2, image=2fb46bac197ccc7f39d62d37c0e5d59e, author=[af884e69-1820-4c2b-b0ad-6792662cb39c], languageId=1, blogContent=<p>RDS for PostgreSQL supports many PostgreSQL extensions. The PostgreSQL community sometimes refers to these as modules. Extensions expand on the functionality provided by the PostgreSQL engine. You can find a list of extensions supp undefined
+
+---
+
+this seems like a bug in dotCMS sometimes it is sending a map and sometimes a string?
+
+---
+
+this got a Content sent but no identifier returned. Failed:
+
+---
+
+In talking about ❯ this seems like a bug in dotCMS sometimes it is sending a map and sometimes a string?
+
+⏺ Yeah, it does look inconsistent. The dotCMS workflow fire endpoint returns different response shapes depending on the action and possibly the content:
+
+  1. PUBLISH with simple fields: { entity: { identifier: "abc", ... } } — identifier is a direct property
+  2. EDIT with simple fields: { entity: { "abc-identifier": { ...contentlet... } } } — identifier is the key
+  3. With relationships/arrays: { entity: { results: [{ "<java Map.toString()>": { ...contentlet... } }], summary: {...} } } — the key becomes the Java .toString() of the input
+  map because the array values don't serialize cleanly as a JSON key
+
+
+Can you create 3 curl commands that show this inconsistancy?
+
+---
+
+/mind:stats
+
+---
+
+/mind:stats
+
+---
+
+can you move .claude/mind.mv2 to ~/.claude/mind.mv2?  I would like the mind file to be me
+
+---
+
+mind
+
+---
+
+ok, back to our google doc plugin - the relationship select is not persisting.  The issue is that it takes a lucene query as a arg, meaning you should use like this `+identifier:(a3fa13a5-6696-48f0-bf07-421485e16361
+OR  b79b03f48719c138b0b464ba6e194bf3 OR ....)
+
+---
+
+you can tail the dotCMs system logs to see the error: ~/git/dotcms/system.out    The relationship needs to be sent as a lucene query string
+
+---
+
+did you clasp push your changes?

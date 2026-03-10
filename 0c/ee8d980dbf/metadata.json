@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "0cee8d980dbf",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 29,
+  "files_touched": [
+    "Code.gs",
+    "DocParser.gs",
+    "DotCMSApi.gs",
+    "Sidebar.html",
+    "SyncEngine.gs"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0c/ee8d980dbf/0/metadata.json",
+      "transcript": "/0c/ee8d980dbf/0/full.jsonl",
+      "content_hash": "/0c/ee8d980dbf/0/content_hash.txt",
+      "prompt": "/0c/ee8d980dbf/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 236,
+    "cache_creation_tokens": 654055,
+    "cache_read_tokens": 9882194,
+    "output_tokens": 31911,
+    "api_call_count": 127
+  }
+}
