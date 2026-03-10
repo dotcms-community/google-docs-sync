@@ -320,3 +320,7 @@ you can tail the dotCMs system logs to see the error: ~/git/dotcms/system.out   
 ---
 
 did you clasp push your changes?
+
+---
+
+can you commit this now?
