@@ -20,16 +20,21 @@ A Google Apps Script sidebar add-on that pushes Google Doc content to dotCMS as 
 
 ## Features
 
-- **Arbitrary content types** — works with any dotCMS content type
+- **Arbitrary content types** — works with any dotCMS content type; search and select with a chip-style picker
 - **Metadata table** — two-column table with a `Field | Value` marker header row, auto-populated with required fields from the Content Type API
-- **Field Editor** — sidebar controls for select/dropdown fields, boolean fields (true/false), and relationship field lookups (single and multi-select)
+- **Field Editor** — sidebar controls for select/dropdown fields, boolean fields (true/false), and relationship field lookups (single and multi-select via Lucene queries)
+- **Body field selector** — choose which content type field receives the document body; persisted as `dotBodyField` in the metadata table
+- **Code formatting** — monospace text in Google Docs is automatically wrapped in `<code>` (inline) or `<pre><code>` (block) tags during HTML export
 - **Clean HTML export** — body content exported as HTML with Google's inline styles and unnecessary markup stripped
-- **Image handling** — images uploaded via dotCMS Temp API → dotAsset flow, with MD5 hash-based deduplication across syncs
+- **Image handling** — inline images uploaded via dotCMS Temp API → dotAsset flow, with MD5 hash-based deduplication across syncs
+- **Image/file metadata fields** — inline images in image or file field cells are uploaded as dotAssets; the identifier is written back below the image so subsequent syncs skip re-uploading
 - **Embedded drawings/charts** — exported as PNG and uploaded as dotAssets
-- **Create or update** — first sync creates content, subsequent syncs update it (tracked via document properties)
-- **Site/folder picker** — select target site and folder from the sidebar
+- **Relationship fields** — relationship values are sent as Lucene query strings (`+identifier:(id1 OR id2)`) for proper dotCMS persistence
+- **Smart host detection** — automatically detects custom `HostFolderField` variables on the content type; falls back to `host` only when no custom field exists
+- **Create or update** — first sync creates content, subsequent syncs update it (identifier and inode tracked in the metadata table)
+- **Site/folder picker** — select target site and folder from the sidebar; auto-selects from metadata on load
 - **Language picker** — push content to any language version
-- **Draft/Publish toggle** — uses `/api/v1/workflow/actions/default/fire/SAVE` or `/PUBLISH`
+- **Draft/Publish toggle** — uses `/api/v1/workflow/actions/default/fire/EDIT` or `/PUBLISH`
 - **Persistent sync log** — shows last sync timestamp, status, and any failed items
 - **Progress indicator** — progress bar during sync
 - **Partial failure handling** — if some images fail, content still syncs and failures are reported
@@ -78,9 +83,11 @@ Then open the bound Google Doc, refresh, and go to **Extensions → dotCMS Sync 
 
 ### Domain-Wide Deployment
 
-1. In the Apps Script editor: **Deploy → New deployment**
-2. Select type: **Editor Add-on**
-3. Deploy, then install for your domain via Google Workspace Admin
+1. In the Apps Script editor: **Deploy → New deployment** (type: Editor Add-on)
+2. In the [Google Cloud Console](https://console.cloud.google.com), enable the **Google Workspace Marketplace SDK** for your GCP project
+3. Go to the Marketplace SDK **App Configuration** tab and enter the deployment ID
+4. Under **Store Listing**, fill in the app name, description, and required assets (icon, screenshot)
+5. Set visibility to **Private** (or Public with Internal OAuth consent screen) and publish
 
 ## dotCMS API Endpoints Used
 
@@ -103,12 +110,16 @@ Then open the bound Google Doc, refresh, and go to **Extensions → dotCMS Sync 
 │  Field     │  Value         │  ← Marker header row (required)
 ├─────────────────────────────┤
 │  title     │  My Article    │  ← Required fields auto-generated
-│  author    │  Jane Doe      │
-│  category  │  Tech          │  ← Optional fields added manually
+│  author    │  af884e69...   │  ← Relationship field (identifier)
+│  image     │  🖼️ + id       │  ← Image field (inline image + identifier)
+│  category  │  Tech          │  ← Optional fields added via dropdown
+│  dotBodyField │ blogContent │  ← Body field mapping (auto-persisted)
 └─────────────────────────────┘
 
-Body content goes here. This becomes the HTML
-pushed to the designated body field in dotCMS.
+Body content goes here — including `inline code` and:
 
+    code blocks in monospace fonts
+
+These become <code> and <pre><code> in the exported HTML.
 Images are automatically uploaded as dotAssets.
 ```
