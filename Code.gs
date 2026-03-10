@@ -14,6 +14,27 @@ function onInstall(e) {
   onOpen(e);
 }
 
+/**
+ * Workspace Add-on homepage trigger — returns a card with an "Open Sidebar" button.
+ */
+function onHomepage() {
+  var action = CardService.newAction().setFunctionName('openSidebarAction');
+  var button = CardService.newTextButton()
+    .setText('Open dotCMS Sync')
+    .setOnClickAction(action);
+  var section = CardService.newCardSection()
+    .addWidget(CardService.newTextParagraph().setText('Sync this Google Doc to dotCMS.'))
+    .addWidget(button);
+  return CardService.newCardBuilder()
+    .setHeader(CardService.newCardHeader().setTitle('dotCMS Sync'))
+    .addSection(section)
+    .build();
+}
+
+function openSidebarAction() {
+  showSidebar();
+}
+
 function showSidebar() {
   var html = HtmlService.createHtmlOutputFromFile('Sidebar')
     .setTitle('dotCMS Sync')
