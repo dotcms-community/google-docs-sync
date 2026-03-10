@@ -103,3 +103,7 @@ function syncToDocCMS(options) {
 function getSyncLog() {
   return SyncEngine.getSyncLog();
 }
+
+function getDebugFireResult() {
+  return PropertiesService.getDocumentProperties().getProperty('_debug_fireResult') || 'no data';
+}

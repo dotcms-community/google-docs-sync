@@ -258,14 +258,32 @@ var DocParser = {
     var metaTable = this.findMetadataTable();
     var metaTableIndex = metaTable ? metaTable.tableIndex : -1;
     var numChildren = body.getNumChildren();
-    var html = '';
+    var parts = [];
 
     for (var i = 0; i < numChildren; i++) {
       if (i === metaTableIndex) continue;
-      html += this._elementToHtml(body.getChild(i));
+      var h = this._elementToHtml(body.getChild(i));
+      if (h) parts.push(h);
     }
 
-    return html.trim();
+    // Merge consecutive <pre><code> blocks into a single block
+    var merged = [];
+    var PRE_OPEN = '<pre><code>';
+    var PRE_CLOSE = '</code></pre>';
+    for (var p = 0; p < parts.length; p++) {
+      var cur = parts[p];
+      if (cur.indexOf(PRE_OPEN) === 0 && merged.length > 0 &&
+          merged[merged.length - 1].indexOf(PRE_OPEN) === 0) {
+        var prev = merged[merged.length - 1];
+        prev = prev.substring(0, prev.length - PRE_CLOSE.length);
+        var inner = cur.substring(PRE_OPEN.length, cur.length - PRE_CLOSE.length);
+        merged[merged.length - 1] = prev + '\n' + inner + PRE_CLOSE;
+      } else {
+        merged.push(cur);
+      }
+    }
+
+    return merged.join('').trim();
   },
 
   /**
@@ -295,6 +313,14 @@ var DocParser = {
 
   _paragraphToHtml: function (para) {
     var heading = para.getHeading();
+
+    // Code block: entire paragraph is monospace → <pre><code>
+    if (heading === DocumentApp.ParagraphHeading.NORMAL && this._isCodeParagraph(para)) {
+      var plainText = para.getText();
+      if (!plainText) return '';
+      return '<pre><code>' + this._escapeHtml(plainText) + '</code></pre>';
+    }
+
     var content = this._renderInlineContent(para);
     if (!content && heading === DocumentApp.ParagraphHeading.NORMAL) return '';
 
@@ -377,6 +403,7 @@ var DocParser = {
       var underline = textEl.isUnderline(i);
       var strikethrough = textEl.isStrikethrough(i);
       var link = textEl.getLinkUrl(i);
+      var fontFamily = textEl.getFontFamily(i);
 
       var j = i + 1;
       while (j < text.length &&
@@ -384,7 +411,8 @@ var DocParser = {
              textEl.isItalic(j) === italic &&
              textEl.isUnderline(j) === underline &&
              textEl.isStrikethrough(j) === strikethrough &&
-             textEl.getLinkUrl(j) === link) {
+             textEl.getLinkUrl(j) === link &&
+             textEl.getFontFamily(j) === fontFamily) {
         j++;
       }
 
@@ -395,11 +423,48 @@ var DocParser = {
       if (italic) chunk = '<em>' + chunk + '</em>';
       if (underline) chunk = '<u>' + chunk + '</u>';
       if (strikethrough) chunk = '<s>' + chunk + '</s>';
+      if (this._isMonospace(fontFamily)) chunk = '<code>' + chunk + '</code>';
 
       html += chunk;
       i = j;
     }
     return html;
+  },
+
+  // ── Code detection helpers ──
+
+  _MONOSPACE_FONTS: ['courier new', 'courier', 'consolas', 'source code pro',
+    'roboto mono', 'fira code', 'fira mono', 'inconsolata', 'menlo', 'monaco',
+    'ubuntu mono', 'droid sans mono', 'monospace', 'noto sans mono'],
+
+  _isMonospace: function (fontFamily) {
+    if (!fontFamily) return false;
+    var lower = fontFamily.toLowerCase();
+    for (var i = 0; i < this._MONOSPACE_FONTS.length; i++) {
+      if (lower.indexOf(this._MONOSPACE_FONTS[i]) !== -1) return true;
+    }
+    return false;
+  },
+
+  /**
+   * Check if an entire paragraph consists only of monospace-font text.
+   */
+  _isCodeParagraph: function (para) {
+    var numChildren = para.getNumChildren();
+    if (numChildren === 0) return false;
+    var hasText = false;
+    for (var i = 0; i < numChildren; i++) {
+      var child = para.getChild(i);
+      if (child.getType() !== DocumentApp.ElementType.TEXT) return false;
+      var textEl = child.asText();
+      var text = textEl.getText();
+      if (!text) continue;
+      hasText = true;
+      for (var j = 0; j < text.length; j++) {
+        if (!this._isMonospace(textEl.getFontFamily(j))) return false;
+      }
+    }
+    return hasText;
   },
 
   _escapeHtml: function (str) {
@@ -408,6 +473,137 @@ var DocParser = {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
+  },
+
+  /**
+   * Extract inline images from metadata table cells for image/file fields.
+   * @param {string[]} imageFieldVars - list of field variables that are image/file type
+   * @returns {Array<{variable: string, blob: Blob, name: string, blobHash: string, rowIndex: number}>}
+   */
+  getMetadataImageFields: function (imageFieldVars) {
+    var result = this.findMetadataTable();
+    if (!result) return [];
+
+    var table = result.table;
+    var images = [];
+    var varSet = {};
+    for (var v = 0; v < imageFieldVars.length; v++) {
+      varSet[imageFieldVars[v]] = true;
+    }
+
+    for (var r = 1; r < table.getNumRows(); r++) {
+      var row = table.getRow(r);
+      if (row.getNumCells() < 2) continue;
+      var fieldVar = row.getCell(0).getText().trim();
+      if (!varSet[fieldVar]) continue;
+
+      var valueCell = row.getCell(1);
+      // Get any existing text in the cell (could be an identifier from a previous upload)
+      var cellText = valueCell.getText().trim();
+      var hasImage = false;
+
+      // Look for inline images in the value cell
+      var numChildren = valueCell.getNumChildren();
+      for (var c = 0; c < numChildren; c++) {
+        var child = valueCell.getChild(c);
+        // Child could be a Paragraph containing an InlineImage
+        if (typeof child.getNumChildren === 'function') {
+          for (var gc = 0; gc < child.getNumChildren(); gc++) {
+            var grandChild = child.getChild(gc);
+            if (grandChild.getType() === DocumentApp.ElementType.INLINE_IMAGE) {
+              hasImage = true;
+              var blob = grandChild.getBlob();
+              var hash = this._hashBlob(blob);
+              var ext = this._getExtension(blob.getContentType());
+              images.push({
+                variable: fieldVar,
+                blob: blob,
+                name: fieldVar + '.' + ext,
+                blobHash: hash,
+                rowIndex: r,
+                existingId: cellText  // identifier text already in the cell
+              });
+            }
+          }
+        }
+        if (child.getType() === DocumentApp.ElementType.INLINE_IMAGE) {
+          hasImage = true;
+          var blob = child.getBlob();
+          var hash = this._hashBlob(blob);
+          var ext = this._getExtension(blob.getContentType());
+          images.push({
+            variable: fieldVar,
+            blob: blob,
+            name: fieldVar + '.' + ext,
+            blobHash: hash,
+            rowIndex: r,
+            existingId: cellText
+          });
+        }
+      }
+    }
+    return images;
+  },
+
+  /**
+   * Set the identifier text below an image in a metadata table cell,
+   * preserving the inline image.
+   */
+  setImageFieldIdentifier: function (fieldVariable, identifier) {
+    var result = this.findMetadataTable();
+    if (!result) return;
+
+    var table = result.table;
+    for (var r = 1; r < table.getNumRows(); r++) {
+      var row = table.getRow(r);
+      if (row.getNumCells() < 2) continue;
+      if (row.getCell(0).getText().trim() !== fieldVariable) continue;
+
+      var valueCell = row.getCell(1);
+      // Find the paragraph that contains the inline image
+      var numChildren = valueCell.getNumChildren();
+      var foundImage = false;
+
+      for (var c = 0; c < numChildren; c++) {
+        var child = valueCell.getChild(c);
+        if (child.getType() === DocumentApp.ElementType.PARAGRAPH) {
+          var para = child.asParagraph();
+          for (var gc = 0; gc < para.getNumChildren(); gc++) {
+            if (para.getChild(gc).getType() === DocumentApp.ElementType.INLINE_IMAGE) {
+              foundImage = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if (foundImage) {
+        // Remove any existing text paragraphs (old identifier), keep image paragraphs
+        for (var c = numChildren - 1; c >= 0; c--) {
+          var child = valueCell.getChild(c);
+          if (child.getType() === DocumentApp.ElementType.PARAGRAPH) {
+            var hasImg = false;
+            var para = child.asParagraph();
+            for (var gc = 0; gc < para.getNumChildren(); gc++) {
+              if (para.getChild(gc).getType() === DocumentApp.ElementType.INLINE_IMAGE) {
+                hasImg = true;
+                break;
+              }
+            }
+            if (!hasImg && c > 0) {
+              // Remove text-only paragraph (but not if it's the only child)
+              valueCell.removeChild(child);
+            }
+          }
+        }
+        // Append a new paragraph with the identifier
+        valueCell.appendParagraph(identifier).setAttributes(this._normalStyle());
+      } else {
+        // No image — just set text
+        valueCell.setText(identifier);
+      }
+      return;
+    }
   },
 
   /**

@@ -171,6 +171,7 @@ var DotCMSApi = {
   fireWorkflow: function (host, token, action, contentletData) {
     var endpoint = '/api/v1/workflow/actions/default/fire/' + action;
     var payload = { contentlet: contentletData };
+    Logger.log('fireWorkflow payload: ' + JSON.stringify(payload).substring(0, 1000));
     var resp = this._post(host, token, endpoint, payload);
     var entity = resp.entity || {};
 

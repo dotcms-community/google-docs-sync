@@ -67,6 +67,20 @@
   .section { margin-bottom: 12px; }
   .hidden { display: none; }
 
+  /* Chip */
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #e8f0fe; color: #1a73e8; border-radius: 16px;
+    padding: 4px 8px 4px 12px; font-size: 13px; font-weight: 500;
+  }
+  .chip-close {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border-radius: 50%; border: none;
+    background: rgba(26,115,232,0.15); color: #1a73e8; font-size: 14px;
+    cursor: pointer; padding: 0; line-height: 1;
+  }
+  .chip-close:hover { background: rgba(26,115,232,0.3); }
+
   /* Loading overlay */
   .loading-overlay {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -118,16 +132,21 @@
   <div id="main-form">
     <!-- Content Type -->
     <div class="section">
-      <label for="ctSearch">Content Type</label>
-      <div style="display:flex;gap:4px;">
-        <input type="text" id="ctSearch" placeholder="Search content types..." style="flex:1;" onkeydown="if(event.key==='Enter')searchContentTypes()">
-        <button class="btn btn-secondary btn-sm" onclick="searchContentTypes()">Search</button>
+      <label>Content Type</label>
+      <div id="ctSearchBox">
+        <div style="display:flex;gap:4px;">
+          <input type="text" id="ctSearch" placeholder="Search content types..." style="flex:1;" onkeydown="if(event.key==='Enter')searchContentTypes()">
+          <button class="btn btn-secondary btn-sm" onclick="searchContentTypes()">Search</button>
+        </div>
+        <div id="ctResults" class="lookup-results" style="display:none;"></div>
       </div>
-      <div id="ctResults" class="lookup-results" style="display:none;"></div>
-      <div id="ctSelected" style="font-size:12px;color:#555;margin-top:4px;display:none;">
-        <span id="ctSelectedName"></span>
-        <input type="hidden" id="contentType" value="">
+      <div id="ctSelected" style="display:none;margin-top:4px;">
+        <span class="chip">
+          <span id="ctSelectedName"></span>
+          <button class="chip-close" onclick="clearContentType()" title="Change content type">&times;</button>
+        </span>
       </div>
+      <input type="hidden" id="contentType" value="">
     </div>
 
     <!-- Site -->
@@ -144,7 +163,7 @@
     <!-- Body Field -->
     <div class="section">
       <label for="bodyField">Body Field</label>
-      <select id="bodyField">
+      <select id="bodyField" onchange="onBodyFieldChange()">
         <option value="body">body</option>
       </select>
     </div>
@@ -160,12 +179,9 @@
     <!-- Add Optional Field -->
     <div class="section" id="addFieldSection" style="display:none;">
       <label for="addFieldSelect">Add Field</label>
-      <div style="display:flex;gap:4px;">
-        <select id="addFieldSelect" style="flex:1;">
-          <option value="">-- Select a field --</option>
-        </select>
-        <button class="btn btn-secondary btn-sm" onclick="addFieldClick()">Add</button>
-      </div>
+      <select id="addFieldSelect" onchange="addFieldClick()">
+        <option value="">-- Select a field --</option>
+      </select>
     </div>
 
     <!-- Field Editor (for select, boolean, relationship fields) -->
@@ -196,12 +212,14 @@
   var currentContentTypeFields = [];
   var currentHostFieldVar = 'host';
   var _pendingLoads = 0;
+  var _initializing = true;
 
   function startLoad() { _pendingLoads++; }
   function endLoad() {
     _pendingLoads--;
     if (_pendingLoads <= 0) {
       _pendingLoads = 0;
+      _initializing = false;
       var overlay = document.getElementById('loadingOverlay');
       if (overlay) overlay.style.display = 'none';
     }
@@ -272,9 +290,9 @@
           if (fields[i].variable === 'contentType' && fields[i].value) {
             var ctVar = fields[i].value;
             document.getElementById('contentType').value = ctVar;
-            document.getElementById('ctSearch').value = ctVar;
+            document.getElementById('ctSearchBox').style.display = 'none';
             document.getElementById('ctSelected').style.display = 'block';
-            document.getElementById('ctSelectedName').textContent = 'Selected: ' + ctVar;
+            document.getElementById('ctSelectedName').textContent = ctVar;
             found = true;
             google.script.run
               .withSuccessHandler(function(ctFields) {
@@ -332,9 +350,21 @@
   function selectContentType(ctVar, ctName) {
     document.getElementById('contentType').value = ctVar;
     document.getElementById('ctSearch').value = '';
+    document.getElementById('ctSearchBox').style.display = 'none';
     document.getElementById('ctSelected').style.display = 'block';
-    document.getElementById('ctSelectedName').textContent = 'Selected: ' + ctName + ' (' + ctVar + ')';
+    document.getElementById('ctSelectedName').textContent = ctName + ' (' + ctVar + ')';
     generateTable(ctVar);
+  }
+
+  function clearContentType() {
+    document.getElementById('contentType').value = '';
+    document.getElementById('ctSearchBox').style.display = 'block';
+    document.getElementById('ctSelected').style.display = 'none';
+    document.getElementById('ctSearch').value = '';
+    document.getElementById('ctSearch').focus();
+    currentContentTypeFields = [];
+    document.getElementById('fieldEditorSection').style.display = 'none';
+    document.getElementById('addFieldSection').style.display = 'none';
   }
 
   function loadSites() {
@@ -350,17 +380,30 @@
           sel.appendChild(opt);
         });
         // Auto-select site from metadata table
+        // Check all fields — the host value could be under 'host' or a custom HostFolderField variable
         google.script.run
           .withSuccessHandler(function(fields) {
             if (!fields) { endLoad(); return; }
+            // Build a set of valid site identifiers from the dropdown
+            var validSites = {};
+            for (var o = 0; o < sel.options.length; o++) {
+              if (sel.options[o].value) validSites[sel.options[o].value] = true;
+            }
+            // First pass: look for custom host field or 'host' with a valid site value
+            var hostVal = '';
             for (var i = 0; i < fields.length; i++) {
-              // Match either 'host' or the custom HostFolderField variable
-              if ((fields[i].variable === 'host' || fields[i].variable === currentHostFieldVar) && fields[i].value) {
-                sel.value = fields[i].value;
-                // Also load folders for this site
-                onSiteChange();
-                break;
+              if (fields[i].value && validSites[fields[i].value]) {
+                // Prioritize custom host field (not 'host') if found
+                if (fields[i].variable !== 'host') {
+                  hostVal = fields[i].value;
+                  break;
+                }
+                if (!hostVal) hostVal = fields[i].value;
               }
+            }
+            if (hostVal) {
+              sel.value = hostVal;
+              onSiteChange();
             }
             endLoad();
           })
@@ -646,6 +689,11 @@
       .updateMetadataField(fieldVariable, value);
   }
 
+  function onBodyFieldChange() {
+    var val = document.getElementById('bodyField').value;
+    google.script.run.updateMetadataField('dotBodyField', val);
+  }
+
   function populateBodyFieldDropdown(fields) {
     var sel = document.getElementById('bodyField');
     sel.innerHTML = '';
@@ -656,7 +704,6 @@
     });
 
     if (bodyFields.length === 0) {
-      // Default fallback
       var opt = document.createElement('option');
       opt.value = 'body';
       opt.textContent = 'body (default)';
@@ -666,10 +713,22 @@
         var opt = document.createElement('option');
         opt.value = f.variable;
         opt.textContent = f.name + ' (' + f.variable + ')';
-        if (f.variable === 'body') opt.selected = true;
         sel.appendChild(opt);
       });
     }
+
+    // Restore saved body field from metadata table
+    google.script.run
+      .withSuccessHandler(function(metaFields) {
+        if (!metaFields) return;
+        for (var i = 0; i < metaFields.length; i++) {
+          if (metaFields[i].variable === 'dotBodyField' && metaFields[i].value) {
+            sel.value = metaFields[i].value;
+            break;
+          }
+        }
+      })
+      .getMetadataFields();
   }
 
   // ── Site change → load folders ──
@@ -678,13 +737,17 @@
     var siteId = document.getElementById('site').value;
     if (!siteId) return;
 
-    // Update the host field in the metadata table (uses custom HostFolderField variable if present)
-    google.script.run.updateMetadataField(currentHostFieldVar, siteId);
+    // Only write to metadata when the user manually changes the site, not during auto-select on load
+    if (!_initializing) {
+      google.script.run.updateMetadataField(currentHostFieldVar, siteId);
+    }
   }
 
   function onLanguageChange() {
     var lang = document.getElementById('language').value;
-    google.script.run.updateMetadataField('languageId', lang);
+    if (!_initializing) {
+      google.script.run.updateMetadataField('languageId', lang);
+    }
   }
 
   // ── Sync ──
