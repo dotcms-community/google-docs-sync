@@ -111,7 +111,7 @@ Then open the bound Google Doc, refresh, and go to **Extensions → dotCMS Sync 
 ├─────────────────────────────┤
 │  title     │  My Article    │  ← Required fields auto-generated
 │  author    │  af884e69...   │  ← Relationship field (identifier)
-│  image     │  🖼️ + id       │  ← Image field (inline image + identifier)
+│  image     │  🖼️ (id)       │  ← Image field (inline image, id will be added once synced.
 │  category  │  Tech          │  ← Optional fields added via dropdown
 │  dotBodyField │ blogContent │  ← Body field mapping (auto-persisted)
 └─────────────────────────────┘
